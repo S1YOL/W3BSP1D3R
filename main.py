@@ -208,7 +208,7 @@ def _build_parser() -> argparse.ArgumentParser:
                  "cve", "idor", "waf", "ssti", "cors", "ssl",
                  "cookies", "nosqli", "subdomains",
                  "dirs", "methods", "fingerprint",
-                 "xxe", "jwt", "info", "ratelimit", "clickjack"],
+                 "xxe", "jwt", "info", "ratelimit", "clickjack", "domxss"],
         default=None,
         metavar="TYPE",
         help=(
@@ -252,6 +252,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Disable TLS certificate verification (use for self-signed certs in labs)",
+    )
+    scan_group.add_argument(
+        "--render",
+        action="store_true",
+        default=False,
+        help="Render pages in a headless browser to crawl JavaScript/SPA content "
+             "and enable DOM-XSS testing (requires: pip install playwright && "
+             "playwright install chromium)",
     )
 
     # Scope control
@@ -575,6 +583,8 @@ def _build_config_from_args(args: argparse.Namespace) -> object:
         config.timeout = args.timeout
     if args.no_verify_ssl:
         config.verify_ssl = False
+    if args.render:
+        config.render = True
     if args.proxy:
         config.proxy = args.proxy
     if args.output:

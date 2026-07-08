@@ -65,6 +65,7 @@ class VulnType:
     SQLI_UNION    = "SQL Injection (UNION-Based)"
     XSS_REFLECTED = "Cross-Site Scripting (Reflected)"
     XSS_STORED    = "Cross-Site Scripting (Stored)"
+    XSS_DOM       = "Cross-Site Scripting (DOM-Based)"
     CSRF          = "Cross-Site Request Forgery (CSRF)"
     SENSITIVE_FILE  = "Sensitive File Exposure"
     SECURITY_HEADER = "Missing/Weak Security Header"
@@ -104,6 +105,7 @@ OWASP_TOP_10: dict[str, dict[str, str]] = {
     VulnType.SQLI_UNION:      {"id": "A03:2021", "name": "Injection"},
     VulnType.XSS_REFLECTED:   {"id": "A03:2021", "name": "Injection"},
     VulnType.XSS_STORED:      {"id": "A03:2021", "name": "Injection"},
+    VulnType.XSS_DOM:         {"id": "A03:2021", "name": "Injection"},
     VulnType.CMD_INJECTION:   {"id": "A03:2021", "name": "Injection"},
     VulnType.NOSQL_INJECTION: {"id": "A03:2021", "name": "Injection"},
     VulnType.SSTI:            {"id": "A03:2021", "name": "Injection"},
@@ -140,6 +142,7 @@ CWE_MAP: dict[str, str] = {
     VulnType.SQLI_UNION:      "CWE-89",
     VulnType.XSS_REFLECTED:   "CWE-79",
     VulnType.XSS_STORED:      "CWE-79",
+    VulnType.XSS_DOM:         "CWE-79",
     VulnType.CSRF:            "CWE-352",
     VulnType.SENSITIVE_FILE:  "CWE-538",
     VulnType.SECURITY_HEADER: "CWE-693",
@@ -191,6 +194,7 @@ DEFAULT_CONFIDENCE: dict[str, str] = {
     VulnType.SQLI_UNION:      Confidence.CERTAIN,
     VulnType.XSS_REFLECTED:   Confidence.CERTAIN,
     VulnType.XSS_STORED:      Confidence.CERTAIN,
+    VulnType.XSS_DOM:         Confidence.CERTAIN,
     VulnType.SSTI:            Confidence.CERTAIN,
     VulnType.SQLI_BOOLEAN:    Confidence.FIRM,
     VulnType.SQLI_TIME:       Confidence.FIRM,

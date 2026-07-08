@@ -72,6 +72,7 @@ from scanner.testers.jwt_test import JWTTester
 from scanner.testers.info_disclosure import InfoDisclosureTester
 from scanner.testers.rate_limit import RateLimitTester
 from scanner.testers.clickjacking import ClickjackingTester
+from scanner.testers.dom_xss import DOMXSSTester
 from scanner.utils import http as http_utils
 from scanner.utils.display import (
     console,
@@ -100,7 +101,7 @@ ScanType = Literal["full", "passive", "sqli", "xss", "csrf",
                    "cve", "idor", "waf", "ssti", "cors", "ssl",
                    "cookies", "nosqli", "subdomains",
                    "dirs", "methods", "fingerprint",
-                   "xxe", "jwt", "info", "ratelimit", "clickjack"]
+                   "xxe", "jwt", "info", "ratelimit", "clickjack", "domxss"]
 
 _TESTER_MAP: dict[str, type[BaseTester]] = {
     "sqli":        SQLiTester,
@@ -211,6 +212,7 @@ class WebVulnScanner:
         self._dashboard_enabled = False
         self._resume = bool(getattr(config, "resume", False)) if config else False
         self._resume_state = None
+        self._render = bool(getattr(config, "render", False)) if config else False
 
         # For checkpoint/resume to work across separate runs, the checkpoint id
         # must be stable for the same target + scan type (a random uuid each run
@@ -524,7 +526,7 @@ class WebVulnScanner:
 
     def _crawl(self) -> list:
         """Execute the crawler with a rich progress display."""
-        crawler = Crawler(base_url=self.url, max_pages=self.max_pages)
+        crawler = Crawler(base_url=self.url, max_pages=self.max_pages, render=self._render)
 
         with make_progress() as progress:
             task = progress.add_task(
@@ -688,8 +690,16 @@ class WebVulnScanner:
         all_testers = dict(_TESTER_MAP)
         all_testers.update(plugin_testers)
 
+        if self.scan_type == "domxss":
+            return [DOMXSSTester()]
+
         if self.scan_type == "full":
-            return [_make(cls) for cls in all_testers.values()]
+            testers = [_make(cls) for cls in all_testers.values()]
+            # DOM XSS needs a headless browser — only run it when rendering is
+            # enabled (otherwise it would launch a browser on every full scan).
+            if self._render:
+                testers.append(DOMXSSTester())
+            return testers
 
         if self.scan_type == "passive":
             passive = [

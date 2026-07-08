@@ -242,6 +242,9 @@ class ScanConfig:
     # Resume a previously interrupted scan from its checkpoint
     resume: bool = False
 
+    # Render pages in a headless browser (JS/SPA crawling + DOM XSS)
+    render: bool = False
+
     def apply_policies(self) -> list[str]:
         """
         Enforce enterprise policies. Returns list of warning messages

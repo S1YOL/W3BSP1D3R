@@ -115,23 +115,29 @@ class Crawler:
         base_url: str,
         honour_robots: bool = True,
         max_pages: int = 100,
+        render: bool = False,
     ) -> None:
         """
         Args:
             base_url       : Root URL — only pages under this origin are crawled.
             honour_robots  : If True, fetch and respect robots.txt disallow rules.
             max_pages      : Hard cap on pages to visit (prevents runaway scans).
+            render         : If True, render each page in a headless browser so
+                             JavaScript/SPA content is discovered. Falls back to
+                             the static HTTP crawler if Playwright is unavailable.
         """
         parsed         = urlparse(base_url)
         # Canonical origin: scheme + netloc (e.g. "http://localhost:80")
         self.origin    = f"{parsed.scheme}://{parsed.netloc}"
         self.base_url  = base_url.rstrip("/")
         self.max_pages = max_pages
+        self.render    = render
 
         self._visited:      set[str]          = set()
         self._queue:        deque[str]        = deque([base_url])
         self._disallowed:   set[str]          = set()
         self.pages:         list[CrawledPage] = []
+        self._renderer                        = None  # set during crawl() if render
 
         if honour_robots:
             self._load_robots_txt()
@@ -148,7 +154,25 @@ class Crawler:
         The crawl stops when:
           - The queue is empty (all reachable pages visited), OR
           - max_pages has been reached.
+
+        If render=True and Playwright is available, pages are rendered in a
+        headless browser so JavaScript-built DOM is crawled.
         """
+        if self.render:
+            self._enter_renderer()
+        try:
+            self._crawl_loop()
+        finally:
+            self._exit_renderer()
+
+        logger.info(
+            "Crawl finished: %d pages visited, %d forms found",
+            len(self._visited),
+            sum(len(p.forms) for p in self.pages),
+        )
+        return self.pages
+
+    def _crawl_loop(self) -> None:
         while self._queue and len(self._visited) < self.max_pages:
             url = self._queue.popleft()
 
@@ -169,12 +193,33 @@ class Crawler:
             if page:
                 self.pages.append(page)
 
-        logger.info(
-            "Crawl finished: %d pages visited, %d forms found",
-            len(self._visited),
-            sum(len(p.forms) for p in self.pages),
-        )
-        return self.pages
+    def _enter_renderer(self) -> None:
+        """Start the headless browser for the crawl, or fall back to HTTP."""
+        from scanner.utils import renderer as _renderer_mod
+        if not _renderer_mod.is_available():
+            print_warning(
+                "Browser rendering requested but Playwright is not installed — "
+                "falling back to static crawling. Install with: "
+                "pip install playwright && playwright install chromium"
+            )
+            self.render = False
+            return
+        try:
+            self._renderer = _renderer_mod.BrowserRenderer()
+            self._renderer.__enter__()
+            print_status("Headless browser started (JavaScript rendering enabled)")
+        except Exception as exc:
+            print_warning(f"Failed to start headless browser: {exc} — using static crawl")
+            self._renderer = None
+            self.render = False
+
+    def _exit_renderer(self) -> None:
+        if self._renderer:
+            try:
+                self._renderer.__exit__(None, None, None)
+            except Exception:
+                pass
+            self._renderer = None
 
     # ------------------------------------------------------------------
     # Fetch + parse a single page
@@ -190,36 +235,49 @@ class Crawler:
 
         Returns a CrawledPage or None on error.
         """
-        try:
-            resp = http_utils.get(url)
-        except Exception as exc:
-            print_warning(f"Fetch failed for {url}: {exc}")
-            return None
-
-        # If we were redirected, use the final URL for parsing
-        final_url = resp.url if resp.url else url
-        if final_url != url:
-            # If the redirect landed on the same origin, treat it as valid
-            final_parsed = urlparse(final_url)
-            final_origin = f"{final_parsed.scheme}://{final_parsed.netloc}"
-            if final_origin == self.origin:
-                self._visited.add(self._normalise(final_url))
-                logger.debug("Followed redirect: %s → %s", url, final_url)
-            else:
-                # Cross-origin redirect — log but don't crash
-                print_warning(f"Redirect to different origin: {url} → {final_url}")
+        # --- Render path (headless browser) ---------------------------------
+        if self._renderer:
+            rr = self._renderer.render(url)
+            if not rr:
+                return None
+            final_url = rr.final_url or url
+            if not self._same_origin_ok(url, final_url):
+                return None
+            # Rendered documents are HTML; content_type is often present but may
+            # be blank for SPA navigations, so only reject on an explicit non-HTML type.
+            if rr.content_type and "html" not in rr.content_type.lower():
+                logger.debug("Skipping non-HTML (%s) at %s", rr.content_type, final_url)
+                return None
+            status_code, html = rr.status, rr.html
+            print_status(f"[{status_code}] {final_url} (rendered)")
+            soup = BeautifulSoup(html, "lxml")
+            # Enqueue browser-resolved anchors (JS-added links included)
+            for link in rr.links:
+                clean = link.split("#")[0]
+                if self._in_scope(clean) and clean not in self._visited:
+                    self._queue.append(clean)
+        else:
+            # --- Static HTTP path -------------------------------------------
+            try:
+                resp = http_utils.get(url)
+            except Exception as exc:
+                print_warning(f"Fetch failed for {url}: {exc}")
                 return None
 
-        content_type = resp.headers.get("Content-Type", "")
-        if "text/html" not in content_type:
-            logger.debug("Skipping non-HTML content at %s (%s)", final_url, content_type)
-            return None
+            final_url = resp.url if resp.url else url
+            if final_url != url and not self._same_origin_ok(url, final_url):
+                return None
 
-        print_status(f"[{resp.status_code}] {final_url}")
+            content_type = resp.headers.get("Content-Type", "")
+            if "text/html" not in content_type:
+                logger.debug("Skipping non-HTML content at %s (%s)", final_url, content_type)
+                return None
 
-        soup = BeautifulSoup(resp.text, "lxml")
+            print_status(f"[{resp.status_code}] {final_url}")
+            status_code = resp.status_code
+            soup = BeautifulSoup(resp.text, "lxml")
 
-        # Enqueue newly discovered links (resolve against final URL)
+        # Enqueue newly discovered <a href> links (resolve against final URL)
         for link in self._extract_links(soup, final_url):
             if link not in self._visited:
                 self._queue.append(link)
@@ -230,10 +288,24 @@ class Crawler:
 
         return CrawledPage(
             url=final_url,
-            status=resp.status_code,
+            status=status_code,
             forms=forms,
             get_params=get_params,
         )
+
+    def _same_origin_ok(self, url: str, final_url: str) -> bool:
+        """Handle a redirect: accept same-origin (recording it as visited),
+        reject cross-origin."""
+        if final_url == url:
+            return True
+        final_parsed = urlparse(final_url)
+        final_origin = f"{final_parsed.scheme}://{final_parsed.netloc}"
+        if final_origin == self.origin:
+            self._visited.add(self._normalise(final_url))
+            logger.debug("Followed redirect: %s → %s", url, final_url)
+            return True
+        print_warning(f"Redirect to different origin: {url} → {final_url}")
+        return False
 
     # ------------------------------------------------------------------
     # Link extraction
