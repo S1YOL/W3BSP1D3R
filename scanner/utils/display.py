@@ -42,6 +42,21 @@ from scanner.reporting.models import Finding, ScanSummary, Severity
 # ---------------------------------------------------------------------------
 console = Console(highlight=False)
 
+# Quiet mode — suppresses banner, phase headers, and per-request status noise
+# (for CI / corporate pipelines). Findings, warnings, errors, and the final
+# summary are still shown so the run remains auditable.
+_QUIET = False
+
+
+def set_quiet(quiet: bool) -> None:
+    """Enable/disable quiet console output (does not affect file logging)."""
+    global _QUIET
+    _QUIET = quiet
+
+
+def is_quiet() -> bool:
+    return _QUIET
+
 # ---------------------------------------------------------------------------
 # Severity → Rich style mapping
 # ---------------------------------------------------------------------------
@@ -78,6 +93,8 @@ BANNER = r"""
 
 def print_banner(version: str = "3.0.0-beta") -> None:
     """Print the scanner ASCII banner and ethical warning."""
+    if _QUIET:
+        return
     console.print(BANNER, style="bold red")
     console.print(
         Panel(
@@ -101,6 +118,8 @@ def print_banner(version: str = "3.0.0-beta") -> None:
 # ---------------------------------------------------------------------------
 
 def print_scan_start(url: str, scan_type: str, authenticated: bool) -> None:
+    if _QUIET:
+        return
     console.print(Rule(f"[bold]Starting {scan_type.upper()} scan", style="red"))
     console.print(f"  [bold]Target:[/bold]        {url}")
     console.print(f"  [bold]Scan type:[/bold]     {scan_type}")
@@ -110,18 +129,26 @@ def print_scan_start(url: str, scan_type: str, authenticated: bool) -> None:
 
 def print_phase(phase_name: str) -> None:
     """Announce a new scan phase (crawl, SQLi, XSS, etc.)."""
+    if _QUIET:
+        return
     console.print(Rule(f"[bold white]{phase_name}[/bold white]", style="red"))
 
 
 def print_status(msg: str) -> None:
+    if _QUIET:
+        return
     console.print(f"  [dim]→[/dim] {msg}")
 
 
 def print_info(msg: str) -> None:
+    if _QUIET:
+        return
     console.print(f"  [bold white][INFO][/bold white] {msg}")
 
 
 def print_success(msg: str) -> None:
+    if _QUIET:
+        return
     console.print(f"  [bold green][OK][/bold green]  {msg}")
 
 
@@ -143,6 +170,8 @@ def print_finding(finding: Finding) -> None:
 
     Structured so the reader sees: WHAT → WHERE → PROOF → FIX
     """
+    if _QUIET:
+        return
     style = _SEV_STYLE.get(finding.severity, "white")
     icon  = _SEV_ICON.get(finding.severity, " ?")
 
@@ -259,6 +288,7 @@ def make_progress() -> Progress:
         TimeElapsedColumn(),
         console=console,
         transient=False,
+        disable=_QUIET,
     )
 
 

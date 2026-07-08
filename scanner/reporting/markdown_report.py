@@ -17,11 +17,46 @@ Markdown was chosen as the primary human-readable format because:
 """
 
 import logging
+from datetime import datetime
 from pathlib import Path
 
 from scanner.reporting.models import Finding, ScanSummary, Severity
 
 logger = logging.getLogger(__name__)
+
+
+def _overall_risk(summary: ScanSummary) -> tuple[str, str]:
+    """Derive a single overall risk rating from the highest severity present."""
+    if summary.critical_count:
+        return "CRITICAL", "🔴"
+    if summary.high_count:
+        return "HIGH", "🟠"
+    if summary.medium_count:
+        return "MEDIUM", "🟡"
+    if summary.low_count:
+        return "LOW", "🔵"
+    return "INFORMATIONAL", "⚪"
+
+
+def _scan_duration(summary: ScanSummary) -> str:
+    """Human-readable scan duration from the ISO timestamps."""
+    try:
+        started = datetime.fromisoformat(summary.started_at)
+        finished = datetime.fromisoformat(summary.finished_at)
+        secs = (finished - started).total_seconds()
+        if secs < 60:
+            return f"{secs:.1f}s"
+        mins, rem = divmod(int(secs), 60)
+        return f"{mins}m {rem}s"
+    except (ValueError, TypeError):
+        return "N/A"
+
+
+def _confidence_counts(summary: ScanSummary) -> dict[str, int]:
+    counts = {"Certain": 0, "Firm": 0, "Tentative": 0}
+    for f in summary.findings:
+        counts[f.confidence] = counts.get(f.confidence, 0) + 1
+    return counts
 
 # Severity → Markdown badge text (GitHub-flavoured Markdown doesn't support
 # coloured text natively, so we use badge-style labels as a workaround)
@@ -79,6 +114,7 @@ def _header(summary: ScanSummary) -> list[str]:
         f"| **Scan Type** | {summary.scan_type} |",
         f"| **Started** | {summary.started_at} |",
         f"| **Finished** | {summary.finished_at} |",
+        f"| **Duration** | {_scan_duration(summary)} |",
         "",
         "---",
         "",
@@ -86,8 +122,20 @@ def _header(summary: ScanSummary) -> list[str]:
 
 
 def _executive_summary(summary: ScanSummary) -> list[str]:
+    risk, risk_icon = _overall_risk(summary)
+    conf = _confidence_counts(summary)
     lines = [
         "## Executive Summary",
+        "",
+        f"> ### {risk_icon} Overall Risk Rating: **{risk}**",
+        "",
+        (
+            f"This assessment tested **{summary.params_tested}** parameter(s) across "
+            f"**{summary.pages_crawled}** page(s) and identified "
+            f"**{summary.total_findings}** finding(s): "
+            f"{summary.critical_count} critical, {summary.high_count} high, "
+            f"{summary.medium_count} medium, {summary.low_count} low."
+        ),
         "",
         "| Metric | Value |",
         "|--------|-------|",
@@ -104,6 +152,17 @@ def _executive_summary(summary: ScanSummary) -> list[str]:
         f"| {_SEV_BADGE[Severity.HIGH]} | {summary.high_count} | Significant impact — session hijack, data exfiltration |",
         f"| {_SEV_BADGE[Severity.MEDIUM]} | {summary.medium_count} | Moderate risk — requires additional conditions to exploit |",
         f"| {_SEV_BADGE[Severity.LOW]} | {summary.low_count} | Low impact — informational, defence-in-depth improvements |",
+        "",
+        "### Detection Confidence",
+        "",
+        "_How certain each finding is. Prioritise **Certain** findings; manually "
+        "review **Tentative** ones before acting._",
+        "",
+        "| Confidence | Count | Meaning |",
+        "|------------|-------|---------|",
+        f"| Certain | {conf.get('Certain', 0)} | Deterministic proof (e.g. reflected payload, DB error) |",
+        f"| Firm | {conf.get('Firm', 0)} | Strong heuristic, confirmed with a second request |",
+        f"| Tentative | {conf.get('Tentative', 0)} | Heuristic only — manual verification advised |",
         "",
         "---",
         "",

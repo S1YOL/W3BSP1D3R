@@ -29,6 +29,16 @@ from scanner.utils import http as http_utils
 logger = logging.getLogger(__name__)
 
 
+# Paths that are expected to be public by design — being reachable is normal,
+# not a finding worth alarming a corporate reader over. Reported at Low/Info.
+_EXPECTED_PUBLIC_PATHS = {
+    "/robots.txt", "/sitemap.xml", "/sitemap_index.xml", "/security.txt",
+    "/.well-known/security.txt", "/humans.txt", "/favicon.ico",
+    "/crossdomain.xml", "/clientaccesspolicy.xml",
+    "/.well-known/openid-configuration",
+}
+
+
 def _neutral_label(description: str) -> str:
     """Strip a trailing verdict word ("exposed"/"accessible"/"found") from a
     path description so an accurate accessibility statement can be attached.
@@ -229,6 +239,23 @@ class DirDiscoveryTester(BaseTester):
                     "no immediate exposure exists. To reduce information disclosure, "
                     "consider returning HTTP 404 instead of 401/403 so the path's "
                     "existence cannot be confirmed by attackers."
+                )
+            elif path in _EXPECTED_PUBLIC_PATHS:
+                # Reachable, but public by design (robots.txt, sitemap, etc.).
+                # Report as informational so it doesn't inflate the risk picture.
+                actual_severity = Severity.LOW
+                confidence = Confidence.TENTATIVE
+                vuln_type = "Public Resource Present"
+                evidence = (
+                    f"{label} is present (HTTP {resp.status_code}). This resource "
+                    f"is expected to be public and is informational only — review "
+                    f"its contents for unintended disclosure. Response: "
+                    f"{len(resp.content)} bytes."
+                )
+                remediation = (
+                    f"No action required for the presence of {path} itself. "
+                    "Review its contents to ensure it does not disclose internal "
+                    "hostnames, staging paths, or other sensitive details."
                 )
             else:
                 # Publicly accessible (2xx): this is a genuine exposure.

@@ -1,0 +1,229 @@
+{
+  "scanner": "W3BSP1D3R",
+  "version": "3.0.0-beta",
+  "report_type": "vulnerability_scan",
+  "summary": {
+    "target_url": "http://127.0.0.1:8099",
+    "scan_type": "full",
+    "started_at": "2026-07-08T05:00:59.807653+00:00",
+    "finished_at": "2026-07-08T05:01:08.251415+00:00",
+    "pages_crawled": 3,
+    "forms_found": 2,
+    "params_tested": 322,
+    "total_findings": 11,
+    "severity_breakdown": {
+      "critical": 1,
+      "high": 1,
+      "medium": 7,
+      "low": 2
+    }
+  },
+  "findings": [
+    {
+      "vuln_type": "SQL Injection (Error-Based)",
+      "severity": "Critical",
+      "url": "http://127.0.0.1:8099/search?q=%27",
+      "parameter": "q",
+      "method": "GET",
+      "payload": "'",
+      "evidence": "DB error signature 'you have an error in your sql syntax' in response: …You have an error in your SQL syntax near '''…",
+      "remediation": "Use parameterised queries (prepared statements) — NEVER concatenate user input into SQL strings. Validate and whitelist input types. Apply least-privilege database accounts. Enable a WAF for defence-in-depth. Ref: OWASP SQL Injection Prevention Cheat Sheet.",
+      "timestamp": "2026-07-08T05:01:05.989444+00:00",
+      "extra": {
+        "db_signature": "you have an error in your sql syntax"
+      },
+      "confidence": "Certain",
+      "fingerprint": "3ef6508ac057c6ab",
+      "owasp": {
+        "id": "A03:2021",
+        "name": "Injection"
+      },
+      "cwe": "CWE-89"
+    },
+    {
+      "vuln_type": "Cross-Site Scripting (Reflected)",
+      "severity": "High",
+      "url": "http://127.0.0.1:8099/search?q=%3Cscript%3Ealert%28%27XSSTESTBA128B0A%27%29%3C%2Fscript%3E",
+      "parameter": "q",
+      "method": "GET",
+      "payload": "<script>alert('XSSTESTBA128B0A')</script>",
+      "evidence": "Marker 'XSSTESTBA128B0A' reflected unencoded: …L syntax near '<script>alert('XSSTESTBA128B0A')</script>'…",
+      "remediation": "Encode all user-supplied output using HTML entity encoding before rendering (e.g. use htmlspecialchars() in PHP, Jinja2 auto-escaping in Python, React JSX). Implement a strict Content-Security-Policy (CSP) header. Validate input server-side — reject or sanitise unexpected characters. Ref: OWASP XSS Prevention Cheat Sheet.",
+      "timestamp": "2026-07-08T05:01:04.269643+00:00",
+      "extra": {
+        "payload_context": "script_tag",
+        "marker": "XSSTESTBA128B0A"
+      },
+      "confidence": "Certain",
+      "fingerprint": "1b5730d8819447dd",
+      "owasp": {
+        "id": "A03:2021",
+        "name": "Injection"
+      },
+      "cwe": "CWE-79"
+    },
+    {
+      "vuln_type": "Cross-Site Request Forgery (CSRF)",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099/login",
+      "parameter": "csrf",
+      "method": "POST",
+      "payload": "Observed token value: 'x'",
+      "evidence": "CSRF token field 'csrf' found but has weaknesses: Token is too short (1 chars < 16 required) | Token value appears static or predictable (all same char, sequential, or very short)",
+      "remediation": "The CSRF token present appears weak (too short, static, or in a GET param). Replace with a cryptographically random per-session token (min 128-bit / 16 bytes). Regenerate the token on each login and store it server-side for validation. Ref: OWASP CSRF Prevention Cheat Sheet.",
+      "timestamp": "2026-07-08T05:00:59.830509+00:00",
+      "extra": {
+        "token_field": "csrf",
+        "token_length": 1,
+        "weaknesses": [
+          "Token is too short (1 chars < 16 required)",
+          "Token value appears static or predictable (all same char, sequential, or very short)"
+        ]
+      },
+      "confidence": "Tentative",
+      "fingerprint": "d50f4cdbdcfb5b16",
+      "owasp": {
+        "id": "A08:2021",
+        "name": "Software and Data Integrity Failures"
+      },
+      "cwe": "CWE-352"
+    },
+    {
+      "vuln_type": "Missing/Weak Security Header",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099/",
+      "parameter": "HTTP Response Headers",
+      "method": "GET",
+      "payload": "(header inspection — no payload sent)",
+      "evidence": "Missing Content-Security-Policy (CSP): No CSP header found. CSP prevents XSS by declaring approved content sources. Set a strict policy.",
+      "remediation": "Configure all recommended security headers in your web server or application. Validate your headers at securityheaders.com. Ref: OWASP Secure Headers Project — https://owasp.org/www-project-secure-headers/",
+      "timestamp": "2026-07-08T05:00:59.919338+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "04232abc89713541",
+      "owasp": {
+        "id": "A05:2021",
+        "name": "Security Misconfiguration"
+      },
+      "cwe": "CWE-693"
+    },
+    {
+      "vuln_type": "Missing/Weak Security Header",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099/search?q=hello",
+      "parameter": "HTTP Response Headers",
+      "method": "GET",
+      "payload": "(header inspection — no payload sent)",
+      "evidence": "Missing Content-Security-Policy (CSP): No CSP header found. CSP prevents XSS by declaring approved content sources. Set a strict policy.",
+      "remediation": "Configure all recommended security headers in your web server or application. Validate your headers at securityheaders.com. Ref: OWASP Secure Headers Project — https://owasp.org/www-project-secure-headers/",
+      "timestamp": "2026-07-08T05:00:59.958926+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "90fc5a6837079c8e",
+      "owasp": {
+        "id": "A05:2021",
+        "name": "Security Misconfiguration"
+      },
+      "cwe": "CWE-693"
+    },
+    {
+      "vuln_type": "Missing/Weak Security Header",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099/page2",
+      "parameter": "HTTP Response Headers",
+      "method": "GET",
+      "payload": "(header inspection — no payload sent)",
+      "evidence": "Missing Content-Security-Policy (CSP): No CSP header found. CSP prevents XSS by declaring approved content sources. Set a strict policy.",
+      "remediation": "Configure all recommended security headers in your web server or application. Validate your headers at securityheaders.com. Ref: OWASP Secure Headers Project — https://owasp.org/www-project-secure-headers/",
+      "timestamp": "2026-07-08T05:00:59.969175+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "295226683f354078",
+      "owasp": {
+        "id": "A05:2021",
+        "name": "Security Misconfiguration"
+      },
+      "cwe": "CWE-693"
+    },
+    {
+      "vuln_type": "Technology Stack Detected",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099",
+      "parameter": "Multiple indicators",
+      "method": "GET",
+      "payload": "Header analysis + HTML fingerprinting + path probing",
+      "evidence": "Detected 1 technologies: Server header: Server: BaseHTTP/0.6 Python/3.14.6",
+      "remediation": "Remove or obscure technology identifiers from HTTP headers (Server, X-Powered-By). Disable version disclosure in your web server and framework configuration. Apache: ServerTokens Prod, ServerSignature Off. Nginx: server_tokens off. PHP: expose_php = Off in php.ini. While security through obscurity alone is insufficient, reducing information disclosure makes reconnaissance harder.",
+      "timestamp": "2026-07-08T05:01:02.339699+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "b47d59458875b2b0",
+      "owasp": null,
+      "cwe": null
+    },
+    {
+      "vuln_type": "Clickjacking — No Framing Protection",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099/",
+      "parameter": "X-Frame-Options / CSP frame-ancestors",
+      "method": "GET",
+      "payload": "Check response headers",
+      "evidence": "Neither X-Frame-Options nor CSP frame-ancestors header is set. The page can be embedded in an iframe on any malicious site.",
+      "remediation": "Add X-Frame-Options: DENY (or SAMEORIGIN if iframes are needed within your own site). Better yet, use CSP: Content-Security-Policy: frame-ancestors 'self'. This prevents your pages from being embedded in attacker-controlled iframes.",
+      "timestamp": "2026-07-08T05:01:04.639036+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "f089135e01fce7c2",
+      "owasp": null,
+      "cwe": "CWE-1021"
+    },
+    {
+      "vuln_type": "Missing Rate Limiting (login form)",
+      "severity": "Medium",
+      "url": "http://127.0.0.1:8099/login",
+      "parameter": "Login form",
+      "method": "POST",
+      "payload": "10 rapid login attempts",
+      "evidence": "Submitted 10 rapid login attempts to http://127.0.0.1:8099/login without rate limiting. Credential brute force attacks are possible.",
+      "remediation": "Implement rate limiting on login forms. After 5 failed attempts, require CAPTCHA or lock the account temporarily. Log all failed login attempts for monitoring.",
+      "timestamp": "2026-07-08T05:01:04.868954+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "f765401179afa148",
+      "owasp": null,
+      "cwe": "CWE-307"
+    },
+    {
+      "vuln_type": "Autocomplete Enabled on Sensitive Field",
+      "severity": "Low",
+      "url": "http://127.0.0.1:8099/",
+      "parameter": "password field",
+      "method": "GET",
+      "payload": "Check form HTML",
+      "evidence": "Password field without autocomplete='off': <input type=\"password\" name=\"password\">",
+      "remediation": "Add autocomplete='off' or autocomplete='new-password' to sensitive form fields (passwords, credit cards, SSNs) to prevent browsers from caching credentials.",
+      "timestamp": "2026-07-08T05:01:04.141128+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "48c2ea89addf7fb0",
+      "owasp": null,
+      "cwe": null
+    },
+    {
+      "vuln_type": "Autocomplete Enabled on Sensitive Field",
+      "severity": "Low",
+      "url": "http://127.0.0.1:8099/page2",
+      "parameter": "password field",
+      "method": "GET",
+      "payload": "Check form HTML",
+      "evidence": "Password field without autocomplete='off': <input type=\"password\" name=\"password\">",
+      "remediation": "Add autocomplete='off' or autocomplete='new-password' to sensitive form fields (passwords, credit cards, SSNs) to prevent browsers from caching credentials.",
+      "timestamp": "2026-07-08T05:01:04.519248+00:00",
+      "extra": {},
+      "confidence": "Tentative",
+      "fingerprint": "db951b5cdb0ba370",
+      "owasp": null,
+      "cwe": null
+    }
+  ]
+}

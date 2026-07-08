@@ -38,6 +38,7 @@ def _configure_logging(
     verbose: bool,
     log_format: str = "text",
     log_file: str | None = None,
+    quiet: bool = False,
 ) -> None:
     """
     Set up the logging system.
@@ -45,10 +46,12 @@ def _configure_logging(
     Supports two modes:
       - "text": Human-readable output (default)
       - "json": Structured JSON lines for SIEM ingestion
+
+    Levels: verbose → DEBUG, quiet → ERROR, otherwise WARNING.
     """
     from scanner.utils.logging_config import configure_logging
 
-    level = "DEBUG" if verbose else "WARNING"
+    level = "DEBUG" if verbose else ("ERROR" if quiet else "WARNING")
     configure_logging(
         level=level,
         fmt=log_format,
@@ -292,6 +295,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Enable verbose logging (shows all HTTP requests and debug info)",
+    )
+    out_group.add_argument(
+        "--quiet",
+        action="store_true",
+        default=False,
+        help="Suppress banner/progress/status output (findings, warnings, and "
+             "summary still shown). Ideal for CI/CD pipelines.",
     )
 
     # Logging
@@ -736,7 +746,13 @@ def main() -> int:
         config.verbose,
         config.logging.format,
         config.logging.file,
+        quiet=args.quiet,
     )
+
+    # Quiet console mode for CI/CD (does not affect file logging or reports)
+    if args.quiet:
+        from scanner.utils.display import set_quiet
+        set_quiet(True)
 
     # Sanitize output path — block directory traversal
     try:
