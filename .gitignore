@@ -23,6 +23,17 @@ env/
 # Scan reports (generated output)
 scan_report.*
 reports/
+# Common report output basenames / any generated report artifacts
+*_report.json
+*_report.md
+*_report.html
+*_report.sarif
+*_report.pdf
+q_report.*
+vapp.*
+tb*.json
+tb*.sarif
+tb*.pdf
 
 # OS files
 .DS_Store
