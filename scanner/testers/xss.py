@@ -379,8 +379,11 @@ class XSSTester(BaseTester):
             # Marker sits inside an opening tag that also carries an event handler
             # e.g. <img src=x onerror=alert('MARKER')>  or  <svg onload=...MARKER...>
             rf"<[a-z][a-z0-9]*\b[^>]*\son\w+\s*=[^>]*{m}[^<]*>",
-            # Marker sits inside a javascript: URI
-            rf"javascript\s*:[^<>]{{0,80}}?{m}",
+            # Marker sits inside a javascript: URI *in an executable attribute*
+            # (href/src/action/formaction). Merely reflecting the text
+            # "javascript:..." inside page content is NOT executable, so we
+            # require the attribute context to avoid false positives.
+            rf"(?:href|src|action|formaction|xlink:href)\s*=\s*['\"]?\s*javascript:[^<>]{{0,120}}?{m}",
         ]
 
         for pattern in structural_patterns:

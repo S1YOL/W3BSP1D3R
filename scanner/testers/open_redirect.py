@@ -18,6 +18,7 @@ OWASP ref: A01:2021 Broken Access Control, CWE-601
 """
 
 import logging
+import re
 from urllib.parse import urlparse
 
 from scanner.crawler import CrawledForm, CrawledPage
@@ -130,13 +131,26 @@ class OpenRedirectTester(BaseTester):
                 return
 
     def _is_open_redirect(self, resp) -> bool:
+        # 1) Real HTTP redirect whose Location targets the canary.
         if resp.status_code in (301, 302, 303, 307, 308):
             loc = resp.headers.get("Location", "")
             if _CANARY_DOMAIN in loc:
                 return True
-        # JavaScript / meta-refresh redirect in body
-        if _CANARY_DOMAIN in resp.text:
-            return True
+        # 2) Client-side redirect: the canary must appear inside an actual
+        #    redirect SINK (meta-refresh or a JS location assignment), NOT merely
+        #    reflected as page text — reflecting a URL string is not a redirect.
+        body = resp.text
+        if _CANARY_DOMAIN in body:
+            sink_patterns = [
+                # <meta http-equiv="refresh" content="0; url=...canary...">
+                rf'http-equiv=["\']?refresh["\']?[^>]*{re.escape(_CANARY_DOMAIN)}',
+                # location = '...canary...' / location.href = / location.replace(
+                rf'location(?:\.href|\.replace\s*\(|\s*=)\s*["\'][^"\']*{re.escape(_CANARY_DOMAIN)}',
+                rf'window\.location[^;]*{re.escape(_CANARY_DOMAIN)}',
+            ]
+            for pat in sink_patterns:
+                if re.search(pat, body, re.IGNORECASE):
+                    return True
         return False
 
     def _evidence(self, resp) -> str:

@@ -350,6 +350,12 @@ class SQLiTester(BaseTester):
 
     def _union_based_form(self, form: CrawledForm, field_name: str) -> bool:
         """Inject UNION SELECT payloads and look for the marker string in the response."""
+        # Control: if the bare marker is reflected when sent as a normal value,
+        # this field echoes input, so marker-in-response cannot distinguish SQL
+        # execution from reflection — skip UNION detection to avoid false positives.
+        if self._param_reflects_marker(form=form, field_name=field_name):
+            return False
+
         for payload in UNION_PAYLOADS:
             data = self._inject_form(form, field_name, payload.value)
             try:
@@ -359,7 +365,11 @@ class SQLiTester(BaseTester):
                     resp = http_utils.get(form.action_url, params=data)
             except Exception:
                 continue
-            if _UNION_MARKER in resp.text:
+            # Execution vs. reflection: the marker proves UNION SQLi only if it
+            # appears WITHOUT the raw payload being echoed back. If the whole
+            # payload is reflected verbatim, the app simply mirrors input — not
+            # a SQL injection.
+            if _UNION_MARKER in resp.text and payload.value not in resp.text:
                 self._log_finding(Finding(
                     vuln_type=VulnType.SQLI_UNION,
                     severity=Severity.CRITICAL,
@@ -571,13 +581,19 @@ class SQLiTester(BaseTester):
 
     def _union_based_get(self, url: str, param_name: str) -> bool:
         """Inject UNION SELECT payloads into a GET parameter and look for the marker."""
+        # Control (see _union_based_form): skip if the param simply reflects input.
+        if self._param_reflects_marker(url=url, param_name=param_name):
+            return False
+
         for payload in UNION_PAYLOADS:
             injected_url = self._inject_get_param(url, param_name, payload.value)
             try:
                 resp = http_utils.get(injected_url)
             except Exception:
                 continue
-            if _UNION_MARKER in resp.text:
+            # Execution vs. reflection (see _union_based_form): require the
+            # marker present but the raw payload NOT echoed back.
+            if _UNION_MARKER in resp.text and payload.value not in resp.text:
                 self._log_finding(Finding(
                     vuln_type=VulnType.SQLI_UNION,
                     severity=Severity.CRITICAL,
@@ -694,6 +710,31 @@ class SQLiTester(BaseTester):
     # ------------------------------------------------------------------
     # Error signature check
     # ------------------------------------------------------------------
+
+    def _param_reflects_marker(
+        self,
+        *,
+        url: str | None = None,
+        param_name: str | None = None,
+        form: CrawledForm | None = None,
+        field_name: str | None = None,
+    ) -> bool:
+        """Send the bare UNION marker as an ordinary value; return True if it is
+        echoed back. Such reflection makes UNION-marker detection unreliable."""
+        try:
+            if form is not None and field_name is not None:
+                data = self._inject_form(form, field_name, _UNION_MARKER)
+                if form.method == "POST":
+                    resp = http_utils.post(form.action_url, data=data)
+                else:
+                    resp = http_utils.get(form.action_url, params=data)
+            elif url is not None and param_name is not None:
+                resp = http_utils.get(self._inject_get_param(url, param_name, _UNION_MARKER))
+            else:
+                return False
+            return _UNION_MARKER in resp.text
+        except Exception:
+            return False
 
     def _check_error_signatures(self, response_text: str) -> tuple[bool, str]:
         """
