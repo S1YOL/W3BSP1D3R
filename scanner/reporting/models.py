@@ -169,6 +169,10 @@ def get_cwe(vuln_type: str) -> str | None:
         return "CWE-1021"
     if "jwt" in lowered or "token" in lowered:
         return "CWE-345"
+    if "sensitive path" in lowered or "accessible" in lowered:
+        return "CWE-538"   # File and Directory Information Exposure
+    if "restricted path" in lowered:
+        return "CWE-200"   # Exposure of Sensitive Information
     return None
 
 

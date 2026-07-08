@@ -23,10 +23,21 @@ from urllib.parse import urljoin, urlparse
 
 from scanner.testers.base import BaseTester
 from scanner.crawler import CrawledPage
-from scanner.reporting.models import Finding, Severity, VulnType
+from scanner.reporting.models import Confidence, Finding, Severity, VulnType
 from scanner.utils import http as http_utils
 
 logger = logging.getLogger(__name__)
+
+
+def _neutral_label(description: str) -> str:
+    """Strip a trailing verdict word ("exposed"/"accessible"/"found") from a
+    path description so an accurate accessibility statement can be attached.
+    e.g. "Git config exposed" -> "Git config"."""
+    lowered = description.lower()
+    for suffix in (" exposed", " accessible", " found", " is exposed"):
+        if lowered.endswith(suffix):
+            return description[: -len(suffix)]
+    return description
 
 # Paths categorised by severity
 _CRITICAL_PATHS = [
@@ -197,31 +208,55 @@ class DirDiscoveryTester(BaseTester):
             if len(resp.content) < _MIN_CONTENT_LENGTH:
                 continue
 
-            # Determine severity based on status code
+            label = _neutral_label(description)
+
             if resp.status_code in (401, 403):
-                # Protected but exists — still interesting, lower severity
-                actual_severity = Severity.MEDIUM if severity == Severity.CRITICAL else Severity.LOW
-                status_note = f" (HTTP {resp.status_code} — protected but exists)"
+                # Access-restricted: the resource is NOT publicly readable. This
+                # is recon signal (the server handles this path specifically),
+                # not an exposure — word it accurately and rate it low.
+                actual_severity = Severity.LOW
+                confidence = Confidence.TENTATIVE
+                vuln_type = "Restricted Path Detected"
+                evidence = (
+                    f"{label} present but access-restricted (HTTP {resp.status_code}). "
+                    f"The server applies specific access controls to this path "
+                    f"(its response differs from the generic catch-all), so the path "
+                    f"is recognised/blocked rather than simply non-existent. "
+                    f"It is NOT publicly readable. Response: {len(resp.content)} bytes."
+                )
+                remediation = (
+                    f"Access to {path} is already restricted (HTTP {resp.status_code}); "
+                    "no immediate exposure exists. To reduce information disclosure, "
+                    "consider returning HTTP 404 instead of 401/403 so the path's "
+                    "existence cannot be confirmed by attackers."
+                )
             else:
+                # Publicly accessible (2xx): this is a genuine exposure.
                 actual_severity = severity
-                status_note = f" (HTTP {resp.status_code})"
+                confidence = Confidence.FIRM
+                vuln_type = "Sensitive Path Accessible"
+                evidence = (
+                    f"{label} is publicly accessible (HTTP {resp.status_code}). "
+                    f"Response: {len(resp.content)} bytes."
+                )
+                remediation = (
+                    f"Remove or restrict public access to {path}. "
+                    "Ensure sensitive files, admin panels, and debug endpoints "
+                    "are not reachable in production. Use web server configuration "
+                    "to block access to backup files, version control directories, "
+                    "and configuration files."
+                )
 
             self._log_finding(Finding(
-                vuln_type="Directory/Endpoint Discovery",
+                vuln_type=vuln_type,
                 severity=actual_severity,
                 url=probe_url,
                 parameter=path,
                 method="GET",
                 payload=f"GET {path}",
-                evidence=f"{description}{status_note}. "
-                         f"Response: {len(resp.content)} bytes.",
-                remediation=(
-                    f"Remove or restrict access to {path}. "
-                    "Ensure sensitive files, admin panels, and debug endpoints "
-                    "are not accessible in production. Use web server configuration "
-                    "to block access to backup files, version control directories, "
-                    "and configuration files."
-                ),
+                evidence=evidence,
+                remediation=remediation,
+                confidence=confidence,
             ))
 
         return self.findings
