@@ -884,6 +884,36 @@ value modest (and raise `--delay`) against production systems to stay polite.
 
 ---
 
+## JavaScript / SPA Scanning (`--render`)
+
+Modern apps (React, Vue, Angular, Next.js, Svelte, …) build their DOM in the
+browser, so a plain HTTP GET returns an almost-empty shell. With `--render`,
+W3BSP1D3R loads each page in a **headless Chromium** browser, waits for the SPA
+to hydrate, and crawls the *rendered* DOM — discovering JavaScript-generated
+links and forms the static crawler cannot see. It also enables the
+**DOM-based XSS** tester, which proves client-side script execution by firing
+`alert()` from injected payloads in the URL fragment and query parameters.
+
+```bash
+# One-time setup (browser download, ~150 MB)
+pip install playwright
+playwright install chromium
+
+# Render JavaScript content and run DOM-XSS testing
+python main.py --url https://app.example.com --scan-type full --render
+
+# DOM-XSS only
+python main.py --url https://app.example.com --scan-type domxss --render
+```
+
+If Playwright is not installed, `--render` prints a warning and the scanner
+transparently falls back to the static HTTP crawler — nothing breaks.
+
+> **Note:** rendering is slower (one browser navigation per page/probe). Keep
+> `--max-pages` modest and raise `--delay` against production targets.
+
+---
+
 ## Environment Variables
 
 All configuration options can be set via environment variables. CLI flags and config file values take precedence.
