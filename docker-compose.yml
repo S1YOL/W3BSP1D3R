@@ -1,0 +1,59 @@
+# W3BSP1D3R Docker Compose — scanner + vulnerable targets for testing
+#
+# Usage:
+#   docker compose up -d dvwa          # Start DVWA target
+#   docker compose run scanner --url http://dvwa/dvwa --login-user admin --login-pass password
+#   docker compose up api              # Start API server on :8888
+
+version: "3.9"
+
+services:
+  # ---- W3BSP1D3R Scanner (one-shot scan) ----
+  scanner:
+    build: .
+    volumes:
+      - ./reports:/app/reports
+      - ./.w3bsp1d3r:/app/.w3bsp1d3r
+    environment:
+      - W3BSP1D3R_VT_API_KEY=${W3BSP1D3R_VT_API_KEY:-}
+      - W3BSP1D3R_NVD_API_KEY=${W3BSP1D3R_NVD_API_KEY:-}
+    networks:
+      - scannet
+    depends_on:
+      - dvwa
+
+  # ---- W3BSP1D3R API Server ----
+  api:
+    build: .
+    command: ["--api-server", "--api-host", "0.0.0.0", "--api-port", "8888",
+              "--database", "/app/.w3bsp1d3r/scans.db"]
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./reports:/app/reports
+      - ./.w3bsp1d3r:/app/.w3bsp1d3r
+    environment:
+      - W3BSP1D3R_API_KEY=${W3BSP1D3R_API_KEY:-}
+    networks:
+      - scannet
+    restart: unless-stopped
+
+  # ---- DVWA (Damn Vulnerable Web Application) ----
+  dvwa:
+    image: vulnerables/web-dvwa
+    ports:
+      - "80:80"
+    networks:
+      - scannet
+
+  # ---- OWASP Juice Shop ----
+  juiceshop:
+    image: bkimminich/juice-shop
+    ports:
+      - "3000:3000"
+    networks:
+      - scannet
+
+networks:
+  scannet:
+    driver: bridge

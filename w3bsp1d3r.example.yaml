@@ -1,0 +1,104 @@
+# W3BSP1D3R Configuration File
+# Copy to w3bsp1d3r.yaml and customise for your environment.
+#
+# Environment variables can be referenced with ${VAR_NAME} syntax.
+# Default values: ${VAR_NAME:-default_value}
+
+# Scan profile: quick | standard | thorough | stealth
+profile: standard
+
+# Target configuration
+target:
+  url: http://localhost/dvwa
+  scope:
+    include: []            # Empty = everything in scope
+    # include:
+    #   - "http://localhost/dvwa/*"
+    exclude:
+      - "*/logout*"
+      - "*/setup.php*"
+
+# Authentication
+auth:
+  auth_type: form          # none | form | bearer | oauth2 | ntlm | apikey
+  username: admin
+  password: password
+
+  # OAuth2 settings (only used when auth_type: oauth2)
+  # oauth2_token_url: https://auth.example.com/oauth/token
+  # oauth2_client_id: ${W3BSP1D3R_OAUTH_CLIENT_ID}
+  # oauth2_client_secret: ${W3BSP1D3R_OAUTH_CLIENT_SECRET}
+  # oauth2_scope: "read write"
+
+  # NTLM settings (only used when auth_type: ntlm)
+  # ntlm_domain: CORP
+
+# Scan configuration
+scan:
+  type: full
+  threads: 4
+  max_pages: 50
+  delay: 0.5
+  timeout: 10
+  verify_ssl: true
+
+# Rate limiting and retry
+rate_limiting:
+  adaptive: true           # Auto back-off on 429/503
+  max_retries: 3
+  backoff_factor: 2.0
+  retry_on_status: [429, 500, 502, 503, 504]
+  max_backoff: 60.0
+
+# Output configuration
+output:
+  base_filename: scan_report
+  formats:
+    - html
+    - md
+    - json
+    - sarif
+    # - pdf               # Requires: pip install fpdf2
+
+# API integrations
+integrations:
+  virustotal:
+    api_key: ${W3BSP1D3R_VT_API_KEY:-}
+    delay: 15
+  nvd:
+    api_key: ${W3BSP1D3R_NVD_API_KEY:-}
+  proxy: null              # e.g. http://127.0.0.1:8080
+
+# Enterprise policies (enforced after all other config)
+policies:
+  min_delay: 0.3           # Minimum request delay (seconds)
+  max_threads: 16          # Maximum concurrent threads
+  required_scan_types: []  # Force specific scan types
+  fail_on: null            # CI/CD failure threshold: critical|high|medium|low
+
+# Checkpoint/resume
+checkpoint:
+  enabled: false
+  directory: .w3bsp1d3r/checkpoints
+
+# Audit trail
+audit:
+  enabled: false
+  log_file: .w3bsp1d3r/audit.log
+
+# Historical scan database
+database:
+  enabled: false
+  path: .w3bsp1d3r/scans.db
+
+# Structured logging
+logging:
+  level: WARNING           # DEBUG | INFO | WARNING | ERROR
+  format: text             # text | json (json for SIEM integration)
+  file: null               # Optional log file path
+
+# Plugin system
+plugins:
+  enabled: false
+  directories:
+    - plugins

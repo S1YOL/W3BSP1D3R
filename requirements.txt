@@ -1,0 +1,17 @@
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+rich>=13.7.0
+defusedxml>=0.7.0
+
+# Enterprise features (install as needed)
+pyyaml>=6.0                  # YAML config file support (--config)
+fpdf2>=2.7.0                 # PDF report generation (--formats pdf)
+
+# Optional integrations (install only if needed)
+# httpx>=0.27.0               # Async HTTP client (--async)
+# flask>=3.0.0               # REST API server (--api-server)
+# requests-ntlm>=1.2.0       # NTLM/Windows auth (--auth-type ntlm)
+
+# GUI (optional — only needed for gui.py)
+# streamlit>=1.30.0
