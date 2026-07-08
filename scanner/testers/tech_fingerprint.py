@@ -226,12 +226,35 @@ class TechFingerprintTester(BaseTester):
                     self._add_tech(tech_name, f"Cookie: {cookie.name}")
 
     def _check_tech_paths(self, origin: str) -> None:
-        """Probe known framework-specific paths."""
+        """Probe known framework-specific paths.
+
+        Many sites (SPAs, WordPress catch-alls, custom 404 handlers) return
+        HTTP 200 with a fallback page for *every* path. Treating that as
+        "path exists" made this tester claim a site ran WordPress, Joomla,
+        Drupal, Rails, ASP.NET and more simultaneously. We first fingerprint a
+        random non-existent path and only count a framework path as present if
+        its response is meaningfully different from that baseline.
+        """
+        import secrets
+        base_status: int | None = None
+        base_len = 0
+        try:
+            base_resp = http_utils.get(origin + "/w3bsp1d3r-" + secrets.token_hex(8))
+            base_status, base_len = base_resp.status_code, len(base_resp.content)
+        except Exception:
+            pass
+
         for path, tech_name in _TECH_PATHS:
             self._count_test()
             try:
                 resp = http_utils.get(origin + path)
-                if resp.status_code == 200 and len(resp.content) > 50:
-                    self._add_tech(tech_name, f"Path exists: {path} (HTTP 200)")
             except Exception:
                 continue
+            if resp.status_code != 200 or len(resp.content) <= 50:
+                continue
+            # Soft-404 guard: if the server returns the same 200 fallback for a
+            # random path, a 200 here proves nothing.
+            if base_status == 200 and abs(len(resp.content) - base_len) <= max(128, base_len * 0.05):
+                logger.debug("Tech path %s matches soft-404 baseline — ignoring", path)
+                continue
+            self._add_tech(tech_name, f"Path exists: {path} (HTTP 200)")
