@@ -88,6 +88,35 @@ def write_pdf_report(summary: ScanSummary, output_path: str) -> Path:
     return path
 
 
+# The built-in PDF fonts (Helvetica/Courier) are latin-1 only. Findings contain
+# Unicode punctuation (ellipsis, em/en dashes, smart quotes, arrows) from evidence
+# and remediation text, which crashes fpdf2. Map the common ones to ASCII and
+# replace anything else so PDF generation never fails.
+_PDF_TRANSLATIONS = {
+    "…": "...",  # … ellipsis
+    "—": "-",    # — em dash
+    "–": "-",    # – en dash
+    "‘": "'", "’": "'",   # ‘ ’ smart single quotes
+    "“": '"', "”": '"',   # “ ” smart double quotes
+    "→": "->",   # → arrow
+    "←": "<-",   # ←
+    "•": "*",    # • bullet
+    " ": " ",    # non-breaking space
+    "·": "*",    # · middle dot
+}
+
+
+def _latin1_safe(text):
+    """Make a string safe for the latin-1 PDF core fonts."""
+    if not isinstance(text, str):
+        return text
+    for uni, ascii_ in _PDF_TRANSLATIONS.items():
+        if uni in text:
+            text = text.replace(uni, ascii_)
+    # Replace any remaining non-latin-1 characters with '?'
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
 class _W3BSP1D3RPDF:
     """Wrapper around FPDF with helper methods for the report."""
 
@@ -98,6 +127,26 @@ class _W3BSP1D3RPDF:
 
     def __getattr__(self, name):
         return getattr(self._pdf, name)
+
+    @staticmethod
+    def _sanitize(args, kwargs):
+        """Sanitize the text argument of cell()/multi_cell() (positional index 2
+        for (w, h, text, ...), or the text/txt keyword)."""
+        args = list(args)
+        if len(args) >= 3:
+            args[2] = _latin1_safe(args[2])
+        for key in ("text", "txt"):
+            if key in kwargs:
+                kwargs[key] = _latin1_safe(kwargs[key])
+        return tuple(args), kwargs
+
+    def cell(self, *args, **kwargs):
+        args, kwargs = self._sanitize(args, kwargs)
+        return self._pdf.cell(*args, **kwargs)
+
+    def multi_cell(self, *args, **kwargs):
+        args, kwargs = self._sanitize(args, kwargs)
+        return self._pdf.multi_cell(*args, **kwargs)
 
     def output(self, path: str):
         self._pdf.output(path)

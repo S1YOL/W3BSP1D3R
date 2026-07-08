@@ -47,14 +47,16 @@ class HeadersTester(BaseTester):
         self.findings.clear()
         self._params_tested = 0
 
-        # Only check one URL per unique path to avoid redundant requests
-        seen: set[str] = set()
+        # Security headers are an origin-level concern (set by the server/CDN),
+        # so check ONE representative URL per origin. Checking every path emitted
+        # the same "missing header" finding dozens of times and inflated reports.
+        seen_origins: set[str] = set()
         for page in pages:
             parsed = urlparse(page.url)
-            key = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-            if key in seen:
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            if origin in seen_origins:
                 continue
-            seen.add(key)
+            seen_origins.add(origin)
             self._check(page.url)
 
         return self.findings
