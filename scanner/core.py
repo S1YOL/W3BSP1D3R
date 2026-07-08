@@ -186,8 +186,8 @@ class WebVulnScanner:
             self.output_formats = ["html", "md", "json", "sarif"]
             self._config = None
 
-            # Initialise the shared HTTP session
-            http_utils.init_session(
+            # Per-scan HTTP client (isolated from any other concurrent scan)
+            self._http = http_utils.new_client(
                 delay=delay,
                 timeout=timeout,
                 verify_ssl=verify_ssl,
@@ -199,7 +199,7 @@ class WebVulnScanner:
         from urllib.parse import urlparse as _urlparse
         _parsed = _urlparse(self.url)
         _target_origin = f"{_parsed.scheme}://{_parsed.netloc}"
-        http_utils.set_allowed_origins({_target_origin})
+        self._http.set_allowed_origins({_target_origin})
 
         # Enterprise components — initialised lazily
         self._audit = None
@@ -246,8 +246,8 @@ class WebVulnScanner:
         self.output_formats = config.output_formats
         self._compare_with = config.compare_with
 
-        # Init HTTP session with enterprise rate limiting config
-        http_utils.init_session(
+        # Per-scan HTTP client (isolated from any other concurrent scan)
+        self._http = http_utils.new_client(
             delay=config.delay,
             timeout=config.timeout,
             verify_ssl=config.verify_ssl,
@@ -328,6 +328,11 @@ class WebVulnScanner:
           finalise → report → diff → audit_complete → database_save
         """
         print_banner(self.VERSION)
+
+        # Bind this scan's isolated HTTP client to the current thread so the
+        # crawler and (main-thread) auth use it. Worker threads re-bind it in
+        # _run_testers_concurrent. This is what keeps concurrent scans isolated.
+        http_utils.set_current_client(self._http)
 
         started_at = datetime.now(timezone.utc).isoformat()
         scan_start_time = time.monotonic()
@@ -563,7 +568,15 @@ class WebVulnScanner:
         _lock = threading.Lock()
         completed_testers: list[str] = []
 
+        # Capture this scan's client + scope so each worker thread rebinds them
+        # (ContextVars do not propagate into ThreadPoolExecutor workers).
+        _client = self._http
+        from scanner.testers.base import get_scope_patterns, set_scope_patterns
+        _scope = get_scope_patterns()
+
         def _run_one(tester: BaseTester):
+            http_utils.set_current_client(_client)
+            set_scope_patterns(*_scope)
             findings = tester.run(pages)
             with _lock:
                 self.summary.params_tested += tester.params_tested

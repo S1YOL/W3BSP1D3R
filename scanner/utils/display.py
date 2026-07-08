@@ -373,7 +373,7 @@ class RateLimitDashboard:
             time.sleep(self._refresh_rate)
 
     def _build_display(self) -> Panel:
-        from scanner.utils.http import get_metrics, _get_effective_delay, _delay, _adaptive_delay
+        from scanner.utils.http import get_metrics, get_current_client
 
         m = get_metrics()
         elapsed = time.monotonic() - self._start_time if self._start_time else 0
@@ -401,10 +401,11 @@ class RateLimitDashboard:
 
         # Throughput and delay row
         try:
-            effective = _get_effective_delay()
-            adapt = _adaptive_delay
+            _client = get_current_client()
+            base_delay = _client.delay
+            adapt = _client._adaptive_delay
         except Exception:
-            effective = 0
+            base_delay = 0
             adapt = 0
 
         tbl.add_row(
@@ -412,7 +413,7 @@ class RateLimitDashboard:
             "Data Received", _format_bytes(m["total_bytes"]),
         )
         tbl.add_row(
-            "Base Delay",   f"[dim]{_delay:.2f}s[/dim]",
+            "Base Delay",   f"[dim]{base_delay:.2f}s[/dim]",
             "Adaptive +",    f"[{'bold yellow' if adapt > 0 else 'dim'}]{adapt:.2f}s[/{'bold yellow' if adapt > 0 else 'dim'}]",
         )
 

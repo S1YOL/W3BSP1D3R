@@ -14,6 +14,7 @@ Design pattern: Template Method
   means creating a new class that inherits from BaseTester and implements run().
 """
 
+import contextvars
 import fnmatch
 import logging
 from abc import ABC, abstractmethod
@@ -24,28 +25,37 @@ from scanner.reporting.models import Finding
 
 logger = logging.getLogger(__name__)
 
-# Module-level scope patterns — set by the scanner core before testers run
-_scope_include: list[str] = []
-_scope_exclude: list[str] = []
+# Scope patterns are held in a ContextVar so concurrent scans (e.g. via the API)
+# don't clobber each other's include/exclude globs. The scanner core sets them
+# per scan and re-applies them inside each worker thread.
+_scope: contextvars.ContextVar = contextvars.ContextVar(
+    "w3bsp1d3r_scope", default=([], [])
+)
 
 
 def set_scope_patterns(include: list[str], exclude: list[str]) -> None:
-    """Configure URL scope patterns (fnmatch globs) for all testers."""
-    global _scope_include, _scope_exclude
-    _scope_include = include
-    _scope_exclude = exclude
+    """Configure URL scope patterns (fnmatch globs) for the current context."""
+    _scope.set((list(include or []), list(exclude or [])))
+
+
+def get_scope_patterns() -> tuple[list[str], list[str]]:
+    """Return the current (include, exclude) scope patterns."""
+    include, exclude = _scope.get()
+    return list(include), list(exclude)
 
 
 def is_url_in_scope(url: str) -> bool:
     """Check if a URL matches scope include/exclude patterns."""
+    include, exclude = _scope.get()
+
     # If no include patterns, everything is in scope
-    if _scope_include:
-        if not any(fnmatch.fnmatch(url, pat) for pat in _scope_include):
+    if include:
+        if not any(fnmatch.fnmatch(url, pat) for pat in include):
             return False
 
     # Check exclusions
-    if _scope_exclude:
-        if any(fnmatch.fnmatch(url, pat) for pat in _scope_exclude):
+    if exclude:
+        if any(fnmatch.fnmatch(url, pat) for pat in exclude):
             return False
 
     return True
@@ -179,7 +189,8 @@ class BaseTester(ABC):
 
     def _filter_pages_by_scope(self, pages: list[CrawledPage]) -> list[CrawledPage]:
         """Filter pages to only those within the configured scope."""
-        if not _scope_include and not _scope_exclude:
+        include, exclude = get_scope_patterns()
+        if not include and not exclude:
             return pages
         return [p for p in pages if self._is_in_scope(p.url)]
 
