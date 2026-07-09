@@ -212,7 +212,9 @@ class WebVulnScanner:
         self._dashboard_enabled = False
         self._resume = bool(getattr(config, "resume", False)) if config else False
         self._resume_state = None
-        self._render = bool(getattr(config, "render", False)) if config else False
+        self._interact = bool(getattr(config, "interact", False)) if config else False
+        # Interaction-driven crawling needs a browser, so it implies rendering.
+        self._render = (bool(getattr(config, "render", False)) if config else False) or self._interact
         self._api_endpoints: list = []   # REST/JSON endpoints found by crawler (Phase D)
 
         # For checkpoint/resume to work across separate runs, the checkpoint id
@@ -543,7 +545,8 @@ class WebVulnScanner:
 
     def _crawl(self) -> list:
         """Execute the crawler with a rich progress display."""
-        crawler = Crawler(base_url=self.url, max_pages=self.max_pages, render=self._render)
+        crawler = Crawler(base_url=self.url, max_pages=self.max_pages,
+                          render=self._render, interact=self._interact)
 
         with make_progress() as progress:
             task = progress.add_task(

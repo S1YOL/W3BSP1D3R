@@ -204,6 +204,40 @@ class TestApiPrecision(unittest.TestCase):
         )
 
 
+class TestInteractionDiscovery(unittest.TestCase):
+    """Phase E — driving the SPA reveals endpoints that only fire on interaction.
+
+    /spa's search endpoint is called ONLY when the user presses Enter in the
+    search box, never on load. So a plain render must NOT discover it, and
+    interaction-driven crawling MUST. Skipped when Playwright is unavailable.
+    """
+
+    def _api_paths(self, *, interact: bool) -> set[str]:
+        from scanner.crawler import Crawler
+        crawler = Crawler(
+            base_url=f"{_app.url}/spa", honour_robots=False,
+            max_pages=2, interact=interact, render=not interact,
+        )
+        crawler.crawl()
+        return {urlparse(e.url).path for e in crawler.api_endpoints}
+
+    def test_interaction_reveals_endpoint_plain_render_misses(self):
+        from scanner.utils import renderer as rmod
+        if not rmod.is_available():
+            self.skipTest("Playwright not installed — interaction test skipped")
+
+        # Plain render (no interaction): the fetch never fires → not discovered.
+        self.assertNotIn(
+            "/api/search", self._api_paths(interact=False),
+            "plain render unexpectedly captured an interaction-only endpoint",
+        )
+        # Interaction-driven: the search submit fires the fetch → discovered.
+        self.assertIn(
+            "/api/search", self._api_paths(interact=True),
+            "interaction-driven crawling did not reveal the search endpoint",
+        )
+
+
 class TestDomXss(unittest.TestCase):
     def test_dom_xss_detected_when_browser_available(self):
         from scanner.utils import renderer as rmod

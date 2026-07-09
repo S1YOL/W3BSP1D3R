@@ -146,6 +146,7 @@ class Crawler:
         honour_robots: bool = True,
         max_pages: int = 100,
         render: bool = False,
+        interact: bool = False,
     ) -> None:
         """
         Args:
@@ -161,7 +162,10 @@ class Crawler:
         self.origin    = f"{parsed.scheme}://{parsed.netloc}"
         self.base_url  = base_url.rstrip("/")
         self.max_pages = max_pages
-        self.render    = render
+        # Interaction-driven crawling (Phase E) only makes sense with a browser,
+        # so requesting it implies rendering.
+        self.interact  = interact
+        self.render    = render or interact
 
         self._visited:      set[str]          = set()
         self._queue:        deque[str]        = deque([base_url])
@@ -237,9 +241,10 @@ class Crawler:
             self.render = False
             return
         try:
-            self._renderer = _renderer_mod.BrowserRenderer()
+            self._renderer = _renderer_mod.BrowserRenderer(interact=self.interact)
             self._renderer.__enter__()
-            print_status("Headless browser started (JavaScript rendering enabled)")
+            mode = "JavaScript rendering + interaction" if self.interact else "JavaScript rendering"
+            print_status(f"Headless browser started ({mode} enabled)")
         except Exception as exc:
             print_warning(f"Failed to start headless browser: {exc} — using static crawl")
             self._renderer = None
@@ -283,10 +288,12 @@ class Crawler:
             status_code, html = rr.status, rr.html
             print_status(f"[{status_code}] {final_url} (rendered)")
             soup = BeautifulSoup(html, "lxml")
-            # Enqueue browser-resolved anchors (JS-added links included)
+            # Enqueue browser-resolved anchors (JS-added links included). Keep SPA
+            # hash-routes (#/…) intact so each is crawled as its own page; strip
+            # only plain in-page anchors (#section).
             for link in rr.links:
-                clean = link.split("#")[0]
-                if self._in_scope(clean) and clean not in self._visited:
+                clean = link if self._is_spa_route(link) else link.split("#")[0]
+                if self._in_scope(clean) and self._normalise(clean) not in self._visited:
                     self._queue.append(clean)
             # Record REST/JSON API endpoints the SPA called (Phase D).
             for req in rr.api_requests:
@@ -367,13 +374,18 @@ class Crawler:
         for tag in soup.find_all("a", href=True):
             href = tag["href"].strip()
 
-            # Skip fragment-only, javascript:, mailto:, tel: links
-            if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+            # Skip empty, javascript:, mailto:, tel: links.
+            if not href or href.startswith(("javascript:", "mailto:", "tel:")):
                 continue
 
             absolute = urljoin(base, href)
-            # Strip fragment
-            absolute = absolute.split("#")[0]
+            # Keep SPA hash-routes (#/…) intact; strip plain in-page anchors.
+            if self._is_spa_route(absolute):
+                pass
+            elif href.startswith("#"):
+                continue  # in-page anchor only — nothing new to crawl
+            else:
+                absolute = absolute.split("#")[0]
 
             if self._in_scope(absolute):
                 links.append(absolute)
@@ -445,9 +457,13 @@ class Crawler:
             /search?q=hello&page=1  →  {"q": ["hello"], "page": ["1"]}
 
         These parameters are injection targets for SQLi and XSS testers.
+
+        keep_blank_values=True is important: an endpoint like /search?q= (empty
+        default, common in SPAs that populate it later) still exposes an injectable
+        `q` parameter — dropping it would leave the endpoint untested.
         """
         parsed = urlparse(url)
-        return parse_qs(parsed.query)  # returns {name: [value, ...]}
+        return parse_qs(parsed.query, keep_blank_values=True)  # {name: [value, ...]}
 
     # ------------------------------------------------------------------
     # REST/JSON API endpoint capture (Phase D)
@@ -587,12 +603,23 @@ class Crawler:
         return candidate_origin == self.origin
 
     @staticmethod
+    def _is_spa_route(url: str) -> bool:
+        """True for client-side SPA routes carried in the fragment, e.g.
+        http://app/#/search?q=x (Angular/Vue/React hash routing). These are
+        distinct pages that must be crawled individually — unlike a plain
+        in-page anchor (#section), which is not."""
+        frag = urlparse(url).fragment
+        return frag.startswith(("/", "!/", "!"))
+
+    @staticmethod
     def _normalise(url: str) -> str:
         """
         Normalise a URL for deduplication:
           - Remove trailing slash (except for root)
           - Lower-case the scheme and host
           - Remove default ports (:80 for http, :443 for https)
+          - Drop in-page anchors, but PRESERVE SPA hash-routes (#/…), which are
+            genuinely different pages.
         """
         p = urlparse(url)
         host = p.hostname or ""
@@ -603,7 +630,8 @@ class Crawler:
             netloc = f"{host}:{port}" if port else host
 
         path = p.path.rstrip("/") or "/"
-        return urlunparse((p.scheme, netloc, path, p.params, p.query, ""))
+        fragment = p.fragment if Crawler._is_spa_route(url) else ""
+        return urlunparse((p.scheme, netloc, path, p.params, p.query, fragment))
 
     @staticmethod
     def _has_skip_extension(url: str) -> bool:

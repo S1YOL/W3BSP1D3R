@@ -160,6 +160,20 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         elif path == "/static":
             self._send(_page("Static", "<p>Nothing user-controlled here.</p>"))
 
+        elif path == "/spa":
+            # A tiny SPA whose search endpoint fires ONLY on user interaction
+            # (Enter in the search box) — never on page load. A plain render sees
+            # no API call; interaction-driven crawling (Phase E) reveals it.
+            self._send(_page(
+                "SPA",
+                '<input id="s" type="search" placeholder="search">'
+                '<script>'
+                'document.getElementById("s").addEventListener("keydown",function(e){'
+                'if(e.key==="Enter"){fetch("/api/search?q="+encodeURIComponent(this.value));}'
+                '});'
+                '</script>',
+            ))
+
         elif path == "/api/search":
             # GET JSON API — error-based SQLi in the `q` query parameter. Returns
             # a JSON body (Content-Type: application/json), so a classic HTML

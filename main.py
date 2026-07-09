@@ -261,6 +261,16 @@ def _build_parser() -> argparse.ArgumentParser:
              "and enable DOM-XSS testing (requires: pip install playwright && "
              "playwright install chromium)",
     )
+    scan_group.add_argument(
+        "--interact",
+        action="store_true",
+        default=False,
+        help="Drive safe, bounded SPA interactions (reveal/submit search, submit "
+             "forms with benign values, click non-destructive controls) so "
+             "injectable REST/JSON endpoints fire and get fuzzed. Implies --render. "
+             "Interacts with the live app — use only on targets you are authorised "
+             "to test.",
+    )
 
     # Scope control
     scope_group = parser.add_argument_group("scope control")
@@ -585,6 +595,9 @@ def _build_config_from_args(args: argparse.Namespace) -> object:
         config.verify_ssl = False
     if args.render:
         config.render = True
+    if args.interact:
+        config.interact = True
+        config.render = True   # interaction needs a browser
     if args.proxy:
         config.proxy = args.proxy
     if args.output:

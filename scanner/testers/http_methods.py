@@ -20,7 +20,7 @@ Detection approach:
 """
 
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from scanner.testers.base import BaseTester
 from scanner.crawler import CrawledPage
@@ -57,10 +57,18 @@ class HTTPMethodTester(BaseTester):
         parsed = urlparse(base_url)
         origin = f"{parsed.scheme}://{parsed.netloc}"
 
-        # Test on the root and a few discovered pages
+        # Test on the root and a few discovered pages. Allowed HTTP methods are a
+        # property of the *server resource* (scheme+host+path), not of a client-side
+        # SPA route — so collapse each URL to its path and drop the #hash fragment
+        # and query. Without this, an SPA's /#/login, /#/about, … would each yield a
+        # duplicate "PUT enabled" finding for what is really one resource.
+        def _server_resource(u: str) -> str:
+            p = urlparse(u)
+            return urlunparse((p.scheme, p.netloc, p.path or "/", "", "", ""))
+
         urls_to_test = {origin + "/"}
         for page in pages[:5]:
-            urls_to_test.add(page.url)
+            urls_to_test.add(_server_resource(page.url))
 
         for url in urls_to_test:
             self._test_options(url)

@@ -245,6 +245,10 @@ class ScanConfig:
     # Render pages in a headless browser (JS/SPA crawling + DOM XSS)
     render: bool = False
 
+    # Drive safe SPA interactions (search, form submit, safe clicks) so injectable
+    # XHR/fetch endpoints fire and get captured (Phase E). Implies render.
+    interact: bool = False
+
     def apply_policies(self) -> list[str]:
         """
         Enforce enterprise policies. Returns list of warning messages
