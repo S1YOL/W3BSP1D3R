@@ -46,7 +46,7 @@ mkdir -p "$DESKTOP_DIR"
 cat > "$DESKTOP_DIR/w3bsp1d3r.desktop" << DESKTOP_EOF
 [Desktop Entry]
 Name=W3BSP1D3R
-Comment=Web Vulnerability Scanner v3.0.0-beta by S1YOL
+Comment=Web Vulnerability Scanner v1.0.0 by S1YOL
 Exec=bash -c 'cd "$SCRIPT_DIR" && ./W3BSP1D3R.sh'
 Terminal=true
 Type=Application

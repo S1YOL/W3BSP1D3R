@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ================================================================
-#  W3BSP1D3R v3.0.0-beta — One-Click Launcher (Linux / macOS)
+#  W3BSP1D3R v1.0.0 — One-Click Launcher (Linux / macOS)
 #  by S1YOL
 #
 #  Make executable and run:
@@ -112,7 +112,7 @@ show_menu() {
     echo ""
     echo -e "   ${BOLD}App${NC} ····· ${CYAN}W3BSP1D3R${NC}"
     echo -e "   ${BOLD}Type${NC} ···· ${CYAN}Web Vulnerability Scanner${NC}"
-    echo -e "   ${BOLD}Version${NC} · ${RED}v3.0.0-beta${NC}"
+    echo -e "   ${BOLD}Version${NC} · ${RED}v1.0.0${NC}"
     echo -e "   ${BOLD}Build${NC} ··· ${CYAN}S1YOL${NC}"
     echo ""
     echo -e "   ${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

@@ -1,12 +1,12 @@
 @echo off
 REM ================================================================
-REM  W3BSP1D3R v3.0.0-beta — One-Click Launcher (Windows)
+REM  W3BSP1D3R v1.0.0 — One-Click Launcher (Windows)
 REM  by S1YOL
 REM
 REM  Double-click this file to run W3BSP1D3R.
 REM  It will auto-install Python dependencies on first run.
 REM ================================================================
-title W3BSP1D3R v3.0.0-beta — Web Vulnerability Scanner
+title W3BSP1D3R v1.0.0 — Web Vulnerability Scanner
 color 0C
 cd /d "%~dp0"
 
@@ -85,7 +85,7 @@ echo.
 echo   =========================================================
 echo.
 echo     App       W3BSP1D3R - Web Vulnerability Scanner
-echo     Version   v3.0.0-beta
+echo     Version   v1.0.0
 echo     Build     S1YOL
 echo.
 echo   =========================================================

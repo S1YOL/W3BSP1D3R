@@ -12,7 +12,7 @@ FROM python:3.12-slim
 
 LABEL maintainer="S1YOL"
 LABEL description="W3BSP1D3R — Enterprise Web Vulnerability Scanner"
-LABEL version="3.0.0-beta"
+LABEL version="1.0.0"
 
 # Security: run as non-root
 RUN groupadd -r scanner && useradd -r -g scanner -m scanner
