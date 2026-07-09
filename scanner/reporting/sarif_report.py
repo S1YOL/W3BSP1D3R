@@ -91,7 +91,7 @@ def _build_sarif(summary: ScanSummary) -> dict:
                 "tool": {
                     "driver": {
                         "name": "W3BSP1D3R",
-                        "version": "3.0.0-beta",
+                        "version": "1.0.0",
                         "informationUri": "https://github.com/siyol/web-vuln-scanner",
                         "rules": rules,
                     }

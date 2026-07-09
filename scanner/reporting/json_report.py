@@ -38,7 +38,7 @@ def write_json_report(summary: ScanSummary, output_path: str) -> Path:
 
     report_data = {
         "scanner": "W3BSP1D3R",
-        "version": "3.0.0-beta",
+        "version": "1.0.0",
         "report_type": "vulnerability_scan",
         "summary": {
             "target_url":     summary.target_url,

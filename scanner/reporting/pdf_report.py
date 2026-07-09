@@ -178,7 +178,7 @@ def _add_cover_page(pdf: _W3BSP1D3RPDF, summary: ScanSummary) -> None:
     # Version
     pdf.set_font("Courier", "B", 9)
     pdf.set_text_color(*_BRAND_RED)
-    pdf.cell(0, 8, "v3.0.0-beta", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(0, 8, "v1.0.0", new_x="LMARGIN", new_y="NEXT", align="C")
 
     # Report title
     pdf.ln(25)
@@ -475,7 +475,7 @@ def _add_disclaimer(pdf: _W3BSP1D3RPDF) -> None:
     pdf.ln(15)
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*_BRAND_RED)
-    pdf.cell(0, 8, "W3BSP1D3R v3.0.0-beta", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(0, 8, "W3BSP1D3R v1.0.0", new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(*_BRAND_GREY)
     pdf.cell(0, 6, "by S1YOL", new_x="LMARGIN", new_y="NEXT", align="C")

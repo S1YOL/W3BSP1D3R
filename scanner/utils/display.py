@@ -91,7 +91,7 @@ BANNER = r"""
                     ─── Web Vulnerability Scanner ───
 """
 
-def print_banner(version: str = "3.0.0-beta") -> None:
+def print_banner(version: str = "1.0.0") -> None:
     """Print the scanner ASCII banner and ethical warning."""
     if _QUIET:
         return

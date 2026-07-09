@@ -141,7 +141,7 @@ class WebVulnScanner:
     activated via the config parameter or individual flags.
     """
 
-    VERSION = "3.0.0-beta"
+    VERSION = "1.0.0"
 
     def __init__(
         self,

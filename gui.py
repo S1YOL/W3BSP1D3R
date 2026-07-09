@@ -29,7 +29,7 @@ import streamlit as st
 # Page configuration — must be the first Streamlit call
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="W3BSP1D3R v3.0.0-beta",
+    page_title="W3BSP1D3R v1.0.0",
     page_icon="🕷️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -294,7 +294,7 @@ st.markdown("""
     <div class="header-title">W<span class="red">3</span>BSP<span class="red">1</span>D<span class="red">3</span>R</div>
     <div class="header-sub">Web Vulnerability Scanner</div>
     <div class="header-meta">
-        <span>Version <b>v3.0.0-beta</b></span>
+        <span>Version <b>v1.0.0</b></span>
         <span>Build <b>S1YOL</b></span>
         <span>Modules <b>17</b></span>
         <span>Formats <b>5</b></span>

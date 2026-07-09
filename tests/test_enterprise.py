@@ -1,7 +1,7 @@
 """
 tests/test_enterprise.py
 --------------------------
-Unit tests for all enterprise modules added in v3.0.0-beta.
+Unit tests for all enterprise modules added in v1.0.0.
 
 Covers:
   - Config loading, env var expansion, profiles, policy enforcement

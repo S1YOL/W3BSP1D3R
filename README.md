@@ -1,6 +1,6 @@
 # W3BSP1D3R
 
-**Web vulnerability scanner built in Python — 17 test modules, 5 report formats, YAML config profiles, enterprise auth, plugin system, REST API, and structured logging. Built for labs, authorised pentesting, and CI/CD pipelines.**
+**Web vulnerability scanner built in Python — 26 test modules, headless-browser rendering for JavaScript/SPA targets, REST/JSON API fuzzing, 5 report formats, YAML config profiles, enterprise auth, plugin system, REST API server, and structured logging. Built for labs, authorised pentesting, and CI/CD pipelines.**
 
 ```
   ╦ ╦╔═╗╔╗ ╔═╗╔═╗╦╔╦╗╔═╗╦═╗
@@ -10,9 +10,9 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0--beta-blueviolet.svg)](#)
-[![Tests](https://img.shields.io/badge/tests-122%20passing-brightgreen.svg)](#running-tests)
-[![Status](https://img.shields.io/badge/status-beta-orange.svg)](#)
+[![Version](https://img.shields.io/badge/version-1.0.0-blueviolet.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-140%20passing-brightgreen.svg)](#running-tests)
+[![Release](https://img.shields.io/badge/release-v1.0.0%20official-brightgreen.svg)](#)
 
 ---
 
@@ -28,10 +28,20 @@
 
 ---
 
-## What's New in v3.0.0-beta
+## Highlights in v1.0.0
+
+This is the official **v1.0.0** release. Beyond the full enterprise feature set below, v1.0.0 adds true JavaScript/SPA coverage, live-app interaction, REST/JSON API fuzzing, and a completely redesigned interactive HTML report:
 
 | Feature | Description |
 |---------|-------------|
+| **Interactive HTML Report** | Client-ready security-assessment document — overall-risk verdict, severity donut, OWASP Top 10 mapping, prioritised remediation roadmap, per-finding CWE/CVSS/confidence metadata, live search & severity filters, light/dark themes, and one-click print-to-PDF |
+| **JavaScript / SPA Rendering** | `--render` loads each page in headless Chromium, hydrates the SPA, and crawls the rendered DOM — finding JS-generated links and forms the static crawler can't see |
+| **DOM-Based XSS** | Browser-verified DOM-XSS tester proves client-side execution by firing `alert()` from payloads injected into the URL fragment and query params |
+| **Interaction-Driven Crawling** | `--interact` drives safe, bounded SPA interactions (submit search, fill forms with benign values, click non-destructive controls) so hidden REST/JSON endpoints fire and get discovered |
+| **SPA Hash-Route Discovery** | Enumerates client-side hash routes (`#/path`) so single-page-app views are crawled, not just the shell |
+| **REST / JSON API Fuzzing** | Injectable JSON API endpoints revealed during rendering are fuzzed for injection flaws, not just HTML forms |
+| **Safe Concurrent Scans** | Per-scan state isolation lets the REST API server run multiple scans at once without cross-contamination (multi-tenancy) |
+| **Quiet Mode** | `--quiet` suppresses banner/progress noise for clean CI/CD logs while still printing findings and the summary |
 | **YAML Config Profiles** | Load reusable configs with `--config` and `--profile` |
 | **Enterprise Auth** | OAuth2, NTLM, API key, custom header authentication |
 | **Structured JSON Logging** | SIEM/ELK-ready `--log-format json` output |
@@ -67,11 +77,11 @@ W3BSP1D3R crawls a target website, maps every form and URL parameter, fires atta
 
 | Category | Modules |
 |----------|---------|
-| **Injection** | SQL Injection (error, UNION, boolean-blind, time-blind) · NoSQL Injection · Command Injection · SSTI |
-| **Client-Side** | Reflected XSS · Stored XSS · CSRF · Open Redirect |
-| **Access Control** | Path Traversal · IDOR · Sensitive File Exposure (`.env`, `.git/`, backups, admin panels) |
-| **Configuration** | Security Headers · Cookie Security · CORS Misconfiguration · SSL/TLS · WAF Detection |
-| **Recon** | Subdomain Enumeration · CVE Lookup (NVD) · VirusTotal Threat Intelligence |
+| **Injection** | SQL Injection (error, UNION, boolean-blind, time-blind) · NoSQL Injection · Command Injection · SSTI · XXE |
+| **Client-Side** | Reflected XSS · Stored XSS · DOM-based XSS (browser-verified) · CSRF · Open Redirect · Clickjacking |
+| **Access Control** | Path Traversal · IDOR · JWT Weaknesses · Sensitive File Exposure (`.env`, `.git/`, backups, admin panels) · Directory Discovery |
+| **Configuration** | Security Headers · Cookie Security · CORS Misconfiguration · SSL/TLS · WAF Detection · HTTP Methods · Rate-Limit Checks |
+| **Recon** | Subdomain Enumeration · Technology Fingerprinting · Information Disclosure · CVE Lookup (NVD) · VirusTotal Threat Intelligence |
 
 ### Detection Quality
 
@@ -119,9 +129,9 @@ cd W3BSP1D3R
 ### Option 2: Download from Releases
 
 Go to [Releases](https://github.com/S1YOL/W3BSP1D3R/releases) and download:
-- **Windows** → `W3BSP1D3R-v3.0.0-beta-windows.zip` — right-click → Extract All
-- **macOS** → `W3BSP1D3R-v3.0.0-beta-macos.tar.gz` — extract with `tar -xzf W3BSP1D3R-v3.0.0-beta-macos.tar.gz`
-- **Linux** → `W3BSP1D3R-v3.0.0-beta-linux.tar.gz` — extract with `tar -xzf W3BSP1D3R-v3.0.0-beta-linux.tar.gz`
+- **Windows** → `W3BSP1D3R-v1.0.0-windows.zip` — right-click → Extract All
+- **macOS** → `W3BSP1D3R-v1.0.0-macos.tar.gz` — extract with `tar -xzf W3BSP1D3R-v1.0.0-macos.tar.gz`
+- **Linux** → `W3BSP1D3R-v1.0.0-linux.tar.gz` — extract with `tar -xzf W3BSP1D3R-v1.0.0-linux.tar.gz`
 
 Then `cd` into the extracted folder.
 
@@ -422,7 +432,7 @@ integrations:
 
 ## Enterprise Authentication
 
-W3BSP1D3R v3.0.0-beta supports multiple authentication methods beyond simple form login.
+W3BSP1D3R v1.0.0 supports multiple authentication methods beyond simple form login.
 
 ### Form-based login (default)
 
@@ -717,7 +727,7 @@ Every scan produces report files in your chosen formats:
 | Format | File | Use Case |
 |--------|------|----------|
 | **Markdown** | `scan_report.md` | GitHub PRs, bug bounty submissions, `pandoc` to PDF |
-| **HTML** | `scan_report.html` | Self-contained single file — open in any browser, share with clients |
+| **HTML** | `scan_report.html` | Interactive, self-contained security-assessment document — risk verdict, severity charts, OWASP mapping, remediation roadmap, live filtering, light/dark themes, print-to-PDF |
 | **JSON** | `scan_report.json` | CI/CD pipelines, SIEM ingestion, custom tooling |
 | **SARIF** | `scan_report.sarif` | GitHub Code Scanning, VS Code SARIF Viewer, CI/CD security gates |
 | **PDF** | `scan_report.pdf` | Executive summaries, client deliverables, offline sharing |
@@ -736,6 +746,19 @@ python main.py --url http://localhost/dvwa --formats json sarif
 ```
 
 > **Note:** PDF generation requires `fpdf2` (`pip install fpdf2`), which is included in `requirements.txt`.
+
+### Interactive HTML report
+
+The HTML report was rebuilt in v1.0.0 into a self-contained, client-ready security-assessment document. It ships as a single file with **no external assets**, so it works fully offline and prints cleanly to PDF straight from the browser. New capabilities:
+
+- **Cover & executive summary** — a computed overall-risk verdict (Critical → No Significant Issues), a unique report reference (`WSR-…`), scan duration, and headline coverage stats.
+- **Risk profile** — a severity-distribution donut and a CVSS-banded breakdown of findings.
+- **OWASP Top 10 (2021) coverage** — every finding mapped to its category, grouped and counted for triage.
+- **Prioritised remediation roadmap** — findings consolidated by issue type and ranked **P1…Pn** (by severity and instance count) so the highest-impact fixes come first.
+- **Rich per-finding metadata** — severity, detection **confidence** (Certain / Firm / Tentative), **CWE**, **OWASP** category, **CVSS** band, and a stable fingerprint, alongside the PoC payload, response evidence, and remediation guidance.
+- **Scope & methodology appendix** — scope, approach, coverage, limitations, and a severity-rating key.
+- **Built-in triage tools** — light/dark **theme toggle** (remembered), **live text search**, **severity filters**, **collapsible findings**, **copy-payload** and **copy-permalink** buttons, a **back-to-top** control, and one-click **Print / Save-as-PDF**.
+- **Theme-aware & print-ready** — legible in both light and dark, with a dedicated print stylesheet that renders a clean paper document. All interactivity is progressive enhancement, so the report is still fully readable with JavaScript disabled.
 
 ---
 
@@ -878,6 +901,14 @@ python main.py --url http://localhost/dvwa --threads 16
 Higher `--threads` improves throughput on large, high-latency targets. Keep the
 value modest (and raise `--delay`) against production systems to stay polite.
 
+### Safe Concurrent Scans (API multi-tenancy)
+
+Each scan now carries fully isolated state — HTTP sessions, rate-limit counters,
+cookie jars, and finding stores are per-scan rather than global. This means the
+[REST API server](#rest-api-server) can run **multiple independent scans at the
+same time** without one scan's cookies, rate limits, or findings leaking into
+another. Concurrent scans against different targets stay cleanly separated.
+
 > **Experimental:** an async (`httpx`) backend lives in
 > `scanner/utils/http_async.py` but is **not yet wired into the CLI** — there is
 > no `--async` flag. The threaded backend above is the supported path.
@@ -911,6 +942,39 @@ transparently falls back to the static HTTP crawler — nothing breaks.
 
 > **Note:** rendering is slower (one browser navigation per page/probe). Keep
 > `--max-pages` modest and raise `--delay` against production targets.
+
+---
+
+## Interaction-Driven Crawling & API Fuzzing (`--interact`)
+
+A rendered DOM only reveals what's already on screen. Many single-page apps
+hide their most interesting attack surface — the REST/JSON endpoints — behind a
+button click, a search box, or a form submission. `--interact` drives those
+interactions for you.
+
+With `--interact`, W3BSP1D3R:
+
+- **Exercises the live app safely** — reveals and submits search boxes, fills
+  forms with benign values, and clicks non-destructive controls within a bounded
+  budget, so the app makes the `fetch`/XHR calls it would make for a real user
+- **Enumerates SPA hash routes** — walks client-side `#/route` views instead of
+  stopping at the app shell
+- **Fuzzes the REST/JSON endpoints it uncovers** — injectable API endpoints
+  observed during interaction are probed for injection flaws directly, not just
+  the HTML forms a static crawler would find
+
+```bash
+# Interaction-driven scan of a single-page app (implies --render)
+python main.py --url https://app.example.com --scan-type full --interact
+
+# Bound the interaction budget on large/slow apps
+python main.py --url https://app.example.com --interact --max-pages 30 --delay 1.0
+```
+
+`--interact` implies `--render`. Because it actively drives the live
+application, use it **only against targets you are authorised to test**. Actions
+are limited to safe, non-destructive controls, but you should still point it at
+lab or staging environments rather than production wherever possible.
 
 ---
 
@@ -963,12 +1027,18 @@ Authentication:
 Scan Configuration:
   --scan-type TYPE            full | passive | sqli | xss | csrf | headers | files |
                               traversal | redirect | cmdi | cve | idor | waf | ssti |
-                              cors | ssl | cookies | nosqli | subdomains  (default: full)
+                              cors | ssl | cookies | nosqli | subdomains | dirs |
+                              methods | fingerprint | xxe | jwt | info | ratelimit |
+                              clickjack | domxss  (default: full)
   --threads N                 Concurrent tester threads (default: 4)
   --max-pages N               Max pages to crawl (default: 50)
   --delay SECS                Delay between requests (default: 0.5)
   --timeout SECS              Per-request timeout (default: 10)
   --no-verify-ssl             Disable TLS verification
+  --render                    Render pages in headless Chromium (JS/SPA crawling +
+                              DOM-XSS). Requires playwright; falls back to static crawl
+  --interact                  Drive safe, bounded SPA interactions to reveal and fuzz
+                              hidden REST/JSON endpoints (implies --render)
   --include PATTERN           URL include pattern (glob, repeatable)
   --exclude PATTERN           URL exclude pattern (glob, repeatable)
 
@@ -976,6 +1046,7 @@ Output:
   --output FILENAME           Report base filename, no extension (default: scan_report)
   --formats FMT [FMT ...]     Report formats: html md json sarif pdf (default: html md json sarif)
   --verbose                   Debug logging — shows every HTTP request
+  --quiet                     Suppress banner/progress output (findings + summary still shown)
   --compare-with FILE         Compare results against a previous scan JSON file
   --dashboard                 Show live rate-limit and progress dashboard in terminal
 
@@ -985,6 +1056,7 @@ Logging:
 
 Persistence:
   --checkpoint                Enable checkpoint/resume for crash recovery
+  --resume                    Resume a previously interrupted scan (implies --checkpoint)
   --audit-log FILE            Write audit trail to file (for compliance)
   --database FILE             SQLite database for historical scan tracking
 
@@ -1005,6 +1077,7 @@ API Server:
   --api-server                Start as REST API server instead of running a scan
   --api-host HOST             API server host (default: 127.0.0.1)
   --api-port PORT             API server port (default: 8888)
+  --api-key KEY               API key required to call the server (repeatable)
 
 Plugins:
   --plugins-dir DIR           Plugin directory (repeatable)
@@ -1127,21 +1200,30 @@ W3BSP1D3R/
 │   │
 │   ├── testers/
 │   │   ├── base.py                  BaseTester — template method pattern
-│   │   ├── sqli.py                  SQL injection (4 methods)
+│   │   ├── sqli.py                  SQL injection (4 methods) + JSON/API fuzzing
 │   │   ├── xss.py                   Reflected + stored XSS
+│   │   ├── dom_xss.py               Browser-verified DOM-based XSS
 │   │   ├── csrf.py                  Token analysis
 │   │   ├── cmdi.py                  Command injection (output + time-based)
 │   │   ├── path_traversal.py        15+ encoding variants
 │   │   ├── open_redirect.py         3xx + body reflection
 │   │   ├── sensitive_files.py       60+ path probes
+│   │   ├── dir_discovery.py         Directory / path discovery
 │   │   ├── headers.py               Security header checks
+│   │   ├── clickjacking.py          Framing / clickjacking protection
+│   │   ├── http_methods.py          Dangerous HTTP method checks
 │   │   ├── nosql_injection.py       MongoDB/CouchDB injection
 │   │   ├── ssti.py                  Server-side template injection
+│   │   ├── xxe.py                   XML external entity injection
+│   │   ├── jwt_test.py              JWT weakness checks
 │   │   ├── idor.py                  Insecure direct object references
 │   │   ├── cors.py                  CORS misconfiguration
 │   │   ├── ssl_tls.py              SSL/TLS configuration
 │   │   ├── cookie_security.py       Cookie flags analysis
+│   │   ├── info_disclosure.py       Information disclosure checks
+│   │   ├── rate_limit.py            Rate-limiting checks
 │   │   ├── waf.py                   WAF detection
+│   │   ├── tech_fingerprint.py      Technology fingerprinting
 │   │   ├── subdomain.py             Subdomain enumeration
 │   │   └── cve.py                   NVD CVE lookup
 │   │
@@ -1155,8 +1237,9 @@ W3BSP1D3R/
 │   │   └── diff_report.py           Scan comparison / diff engine
 │   │
 │   └── utils/
-│       ├── http.py                  Thread-safe session, SSRF guard, retry, rate limiting
+│       ├── http.py                  Per-scan isolated session, SSRF guard, retry, rate limiting
 │       ├── http_async.py            Async HTTP client (httpx)
+│       ├── renderer.py              Headless Chromium rendering + SPA interaction (Playwright)
 │       ├── display.py               Rich terminal UI + rate limit dashboard
 │       └── logging_config.py        Structured logging (text + JSON)
 │
@@ -1165,13 +1248,15 @@ W3BSP1D3R/
 ├── .github/workflows/ci.yml         GitHub Actions CI (lint + test)
 ├── plugins/                         Custom plugin directory (user-created)
 │
-├── tests/                           122 unit tests
+├── tests/                           140 unit tests
 │   ├── test_baseline_error.py       Baseline FP suppression (SQLi, NoSQL, CMDi, PathTraversal)
 │   ├── test_sqli_boolean.py         3-way boolean SQLi logic
 │   ├── test_xss_reflected.py        Structural XSS verification
 │   ├── test_crawler_xxe.py          XXE-safe XML parsing
 │   ├── test_http_safety.py          SSRF guard + response size limit
 │   ├── test_sensitive_files.py      .env detection
+│   ├── test_accuracy.py             Accuracy harness (render, API fuzzing, SPA routes)
+│   ├── test_isolation.py            Per-scan state isolation for concurrent scans
 │   ├── test_enterprise.py           Config, checkpoint, audit, dedup, scope, metrics, webhooks, DB
 │   └── test_enterprise_phase3.py    OWASP mapping, API auth, cron, payloads, ticketing, email
 │
@@ -1196,16 +1281,16 @@ python -m pytest tests/ -v
 ```
 
 ```
-122 passed in 0.32s
+140 passed
 ```
 
-Tests cover: boolean SQLi logic, XSS structural verification, baseline false-positive suppression across all error-based testers, SSRF redirect blocking, XXE prevention, response size limits, sensitive file detection, finding deduplication, checkpoint serialisation, audit log formatting, plugin loading, config profile merging, report diff logic, JSON log output, OWASP Top 10 mapping, API key authentication (401/403/200), cron expression parsing, scan scheduling, custom payload loading, Jira/ServiceNow formatting, email notification rendering, and webhook message building.
+Tests cover: boolean SQLi logic, XSS structural verification, baseline false-positive suppression across all error-based testers, SSRF redirect blocking, XXE prevention, response size limits, sensitive file detection, finding deduplication, checkpoint serialisation, audit log formatting, plugin loading, config profile merging, report diff logic, JSON log output, OWASP Top 10 mapping, API key authentication (401/403/200), cron expression parsing, scan scheduling, custom payload loading, Jira/ServiceNow formatting, email notification rendering, webhook message building, per-scan state isolation for concurrent scans, and the accuracy harness (rendering, REST/JSON API fuzzing, and SPA route discovery).
 
 ---
 
 ## Extending the Scanner
 
-### Option 1: Plugin directory (recommended for v2)
+### Option 1: Plugin directory (recommended)
 
 Drop a Python file into your `plugins/` directory — see [Plugin System](#plugin-system) above.
 

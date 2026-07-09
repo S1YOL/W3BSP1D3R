@@ -105,7 +105,7 @@ def _header(summary: ScanSummary) -> list[str]:
         "# W3BSP1D3R — Scan Report",
         "",
         "```",
-        "  W3BSP1D3R  |  Web Vulnerability Scanner  |  v3.0.0-beta  |  by S1YOL",
+        "  W3BSP1D3R  |  Web Vulnerability Scanner  |  v1.0.0  |  by S1YOL",
         "```",
         "",
         "| | |",
