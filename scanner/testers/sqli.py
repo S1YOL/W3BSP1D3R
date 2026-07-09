@@ -43,7 +43,7 @@ import logging
 import time
 from typing import NamedTuple
 
-from scanner.crawler import CrawledForm, CrawledPage
+from scanner.crawler import ApiEndpoint, CrawledForm, CrawledPage
 from scanner.reporting.models import Finding, Severity, VulnType
 from scanner.testers.base import BaseTester
 from scanner.utils import http as http_utils
@@ -278,7 +278,181 @@ class SQLiTester(BaseTester):
             for param in page.get_params:
                 self._test_get_param(page.url, param)
 
+        # Phase D: REST/JSON API endpoints discovered from SPA XHR/fetch traffic
+        # (query-string params + JSON request-body fields).
+        for endpoint in self._api_endpoints:
+            self._test_api_endpoint(endpoint)
+
         return self.findings
+
+    # ------------------------------------------------------------------
+    # REST/JSON API endpoint testing (Phase D)
+    # ------------------------------------------------------------------
+
+    def _test_api_endpoint(self, endpoint: ApiEndpoint) -> None:
+        """
+        Fuzz a discovered API endpoint's injectable surface:
+          • query-string parameters — reuse the GET-parameter passes (error,
+            UNION-with-reflection-guard, boolean, time), which operate on the raw
+            response text and work equally well on JSON responses;
+          • JSON request-body fields — a dedicated pass that re-serialises the
+            body with one field poisoned and posts it as application/json.
+        """
+        # Query-string parameters (any method) — reuse the proven GET logic.
+        for param in endpoint.query_params:
+            self._test_get_param(endpoint.url, param)
+
+        # JSON body fields — only fuzz string/number leaf fields (injecting into
+        # nested objects/arrays would corrupt the body and just yield errors).
+        if isinstance(endpoint.json_body, dict):
+            for field_name, value in endpoint.json_body.items():
+                if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                    self._test_json_field(endpoint, field_name)
+
+    def _send_json(self, endpoint: ApiEndpoint, body: dict):
+        """POST/PUT/PATCH a JSON body through the rate-limited client."""
+        return http_utils.request(endpoint.method, endpoint.url, json=body)
+
+    def _inject_json(self, body: dict, field_name: str, payload: str) -> dict:
+        """Return a shallow copy of the JSON body with one field replaced by the
+        payload; all other fields keep their original values so the request stays
+        well-formed."""
+        data = dict(body)
+        data[field_name] = payload
+        return data
+
+    def _test_json_field(self, endpoint: ApiEndpoint, field_name: str) -> None:
+        """Run error-, boolean-, and time-based SQLi passes against one JSON body
+        field. UNION is deliberately skipped: JSON APIs commonly echo input, which
+        makes marker reflection unreliable as an execution signal."""
+        self._count_test()
+        print_status(f"SQLi → {endpoint.url} [{endpoint.method} json] field={field_name}")
+
+        # Baseline (benign value) for content comparison.
+        try:
+            baseline = self._send_json(
+                endpoint, self._inject_json(endpoint.json_body, field_name, "test_baseline_1234")
+            )
+        except Exception as exc:
+            logger.debug("JSON baseline failed for %s: %s", endpoint.url, exc)
+            return
+        baseline_text = baseline.text
+
+        if self._error_based_json(endpoint, field_name, baseline_text):
+            return
+        if self._boolean_based_json(endpoint, field_name, baseline_text):
+            return
+        self._time_based_json(endpoint, field_name)
+
+    def _error_based_json(self, endpoint: ApiEndpoint, field_name: str, baseline_text: str) -> bool:
+        for payload in ERROR_PAYLOADS:
+            try:
+                resp = self._send_json(endpoint, self._inject_json(endpoint.json_body, field_name, payload.value))
+            except Exception:
+                continue
+            error_found, signature = self._check_error_signatures(resp.text)
+            if error_found:
+                if baseline_text and signature.lower() in baseline_text.lower():
+                    continue
+                snippet = self._extract_error_snippet(resp.text, signature)
+                self._log_finding(Finding(
+                    vuln_type=VulnType.SQLI_ERROR,
+                    severity=Severity.CRITICAL,
+                    url=endpoint.url,
+                    parameter=field_name,
+                    method=f"{endpoint.method} (JSON body)",
+                    payload=payload.value,
+                    evidence=f"DB error signature '{signature}' in JSON API response: …{snippet}…",
+                    remediation=_REMEDIATION,
+                    extra={"db_signature": signature, "surface": "json_body"},
+                ))
+                return True
+        return False
+
+    def _boolean_based_json(self, endpoint: ApiEndpoint, field_name: str, baseline_text: str) -> bool:
+        baseline_len = len(baseline_text)
+        for true_payload, false_payload in BOOLEAN_PAIRS:
+            try:
+                true_resp  = self._send_json(endpoint, self._inject_json(endpoint.json_body, field_name, true_payload.value))
+                false_resp = self._send_json(endpoint, self._inject_json(endpoint.json_body, field_name, false_payload.value))
+            except Exception:
+                continue
+
+            len_true, len_false = len(true_resp.text), len(false_resp.text)
+
+            # Gate 1: TRUE ≈ baseline (within 10%).
+            if abs(len_true - baseline_len) / max(baseline_len, 1) > 0.10:
+                continue
+            # Gate 2: FALSE differs from TRUE meaningfully.
+            diff = abs(len_true - len_false)
+            pct_diff = diff / max(len_true, len_false, 1)
+            if not (diff >= BOOLEAN_DIFF_THRESHOLD and pct_diff >= BOOLEAN_PCT_THRESHOLD):
+                continue
+            # Gate 3: recheck TRUE for consistency (kills dynamic-content FPs).
+            try:
+                recheck = self._send_json(endpoint, self._inject_json(endpoint.json_body, field_name, true_payload.value))
+                if abs(len(recheck.text) - len_true) / max(len_true, 1) > 0.05:
+                    continue
+            except Exception:
+                continue
+
+            self._log_finding(Finding(
+                vuln_type=VulnType.SQLI_BOOLEAN,
+                severity=Severity.CRITICAL,
+                url=endpoint.url,
+                parameter=field_name,
+                method=f"{endpoint.method} (JSON body)",
+                payload=f"TRUE: {true_payload.value} | FALSE: {false_payload.value}",
+                evidence=(
+                    f"Boolean-based blind SQLi in JSON API (3-way + recheck): "
+                    f"baseline={baseline_len}B, TRUE={len_true}B, FALSE={len_false}B "
+                    f"(diff={diff}B, {pct_diff:.0%})"
+                ),
+                remediation=_REMEDIATION,
+                extra={"surface": "json_body", "diff": diff},
+            ))
+            return True
+        return False
+
+    def _time_based_json(self, endpoint: ApiEndpoint, field_name: str) -> bool:
+        try:
+            _, baseline_time = http_utils.timed_request(
+                endpoint.method, endpoint.url,
+                json=self._inject_json(endpoint.json_body, field_name, "1"),
+            )
+        except Exception:
+            return False
+
+        for payload in TIME_PAYLOADS:
+            body = self._inject_json(endpoint.json_body, field_name, payload.value)
+            try:
+                _, elapsed = http_utils.timed_request(endpoint.method, endpoint.url, json=body)
+            except Exception:
+                continue
+            if elapsed - baseline_time >= SLEEP_THRESHOLD:
+                # Confirmation pass — require the delay to reproduce.
+                try:
+                    _, elapsed2 = http_utils.timed_request(endpoint.method, endpoint.url, json=body)
+                except Exception:
+                    continue
+                if (elapsed2 - baseline_time) < SLEEP_THRESHOLD:
+                    continue
+                self._log_finding(Finding(
+                    vuln_type=VulnType.SQLI_TIME,
+                    severity=Severity.CRITICAL,
+                    url=endpoint.url,
+                    parameter=field_name,
+                    method=f"{endpoint.method} (JSON body)",
+                    payload=payload.value,
+                    evidence=(
+                        f"JSON API response delayed {elapsed - baseline_time:.2f}s, "
+                        f"reproduced at {elapsed2 - baseline_time:.2f}s (baseline={baseline_time:.2f}s)"
+                    ),
+                    remediation=_REMEDIATION,
+                    extra={"surface": "json_body", "delta_secs": round(elapsed - baseline_time, 3)},
+                ))
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Form field testing

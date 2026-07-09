@@ -79,10 +79,19 @@ class BaseTester(ABC):
         self.name     = name
         self.findings: list[Finding] = []
         self._params_tested: int = 0
+        # REST/JSON API endpoints discovered by the crawler (Phase D). The core
+        # populates these via set_api_endpoints(); testers that don't fuzz APIs
+        # simply ignore them.
+        self._api_endpoints: list = []
 
     @property
     def params_tested(self) -> int:
         return self._params_tested
+
+    def set_api_endpoints(self, endpoints: list) -> None:
+        """Provide REST/JSON API endpoints (crawler.ApiEndpoint) for testers that
+        fuzz API surfaces. No-op for testers that only work on HTML pages."""
+        self._api_endpoints = endpoints or []
 
     # ------------------------------------------------------------------
     # Contract — every tester implements this

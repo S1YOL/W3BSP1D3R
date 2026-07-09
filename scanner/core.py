@@ -213,6 +213,7 @@ class WebVulnScanner:
         self._resume = bool(getattr(config, "resume", False)) if config else False
         self._resume_state = None
         self._render = bool(getattr(config, "render", False)) if config else False
+        self._api_endpoints: list = []   # REST/JSON endpoints found by crawler (Phase D)
 
         # For checkpoint/resume to work across separate runs, the checkpoint id
         # must be stable for the same target + scan type (a random uuid each run
@@ -406,12 +407,18 @@ class WebVulnScanner:
         pages = self._crawl()
         self.summary.pages_crawled = len(pages)
         self.summary.forms_found   = sum(len(p.forms) for p in pages)
+        _api_note = (
+            f", {len(self._api_endpoints)} API endpoint(s)"
+            if self._api_endpoints else ""
+        )
         print_success(
             f"Crawl complete: {self.summary.pages_crawled} pages, "
-            f"{self.summary.forms_found} forms discovered."
+            f"{self.summary.forms_found} forms discovered{_api_note}."
         )
 
-        if not pages:
+        # A JSON/API-first target can yield zero HTML pages but still expose
+        # injectable API endpoints — only bail out when there's nothing at all.
+        if not pages and not self._api_endpoints:
             print_error("No pages were crawled. Check the target URL and connectivity.")
             self.summary.finished_at = datetime.now(timezone.utc).isoformat()
             return self.summary
@@ -426,6 +433,11 @@ class WebVulnScanner:
 
         # ---- Step 3: Run testers (concurrent) ---------------------------
         testers = self._build_testers()
+
+        # Hand discovered REST/JSON API endpoints to testers that fuzz them
+        # (Phase D). Testers that only work on HTML pages ignore these.
+        for _t in testers:
+            _t.set_api_endpoints(self._api_endpoints)
 
         # Resume: preload prior findings and skip already-completed testers.
         if self._resume_state:
@@ -557,6 +569,8 @@ class WebVulnScanner:
 
             progress.update(task, completed=self.max_pages, status="Done")
 
+        # Stash REST/JSON API endpoints discovered during the crawl (Phase D).
+        self._api_endpoints = crawler.api_endpoints
         return pages
 
     def _run_testers_concurrent(self, testers: list[BaseTester], pages: list) -> None:

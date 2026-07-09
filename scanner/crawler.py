@@ -22,6 +22,7 @@ Limitations (intentional — this is an educational tool):
   - robots.txt is respected by default (honourRobots=True)
 """
 
+import json as _json
 import logging
 from collections import deque
 from dataclasses import dataclass, field
@@ -90,6 +91,35 @@ class CrawledPage:
     get_params: dict[str, list[str]] = field(default_factory=dict)  # param → [values]
 
 
+@dataclass
+class ApiEndpoint:
+    """A REST/JSON API endpoint discovered from SPA XHR/fetch traffic (or a JSON
+    URL supplied directly). Unlike an HTML page, its injectable surface lives in
+    query-string parameters and/or JSON request-body fields — the two things the
+    Phase D injection pass fuzzes.
+
+    Security concept:
+      Modern applications are API-first: the browser renders a shell, then talks
+      to `/rest/...` or `/api/...` endpoints over JSON. A classic HTML crawler
+      never records these (the responses aren't HTML), so their parameters go
+      untested. Capturing them is what lets the scanner reach injection points on
+      SPA / API-first targets.
+    """
+    url:          str                              # full URL incl. query string
+    method:       str                              # GET / POST / PUT / PATCH / DELETE
+    query_params: dict[str, list[str]] = field(default_factory=dict)
+    json_body:    dict | None = None               # parsed JSON body (if any)
+    content_type: str = ""
+
+    @property
+    def signature(self) -> tuple:
+        """Stable identity for de-duplication: method + path + which parameters
+        are present (not their values), so we test each shape once."""
+        path = urlparse(self.url).path
+        body_keys = tuple(sorted(self.json_body.keys())) if isinstance(self.json_body, dict) else ()
+        return (self.method, path, tuple(sorted(self.query_params.keys())), body_keys)
+
+
 # ---------------------------------------------------------------------------
 # Crawler
 # ---------------------------------------------------------------------------
@@ -137,6 +167,8 @@ class Crawler:
         self._queue:        deque[str]        = deque([base_url])
         self._disallowed:   set[str]          = set()
         self.pages:         list[CrawledPage] = []
+        self.api_endpoints: list[ApiEndpoint] = []   # REST/JSON endpoints (Phase D)
+        self._api_seen:     set[tuple]        = set()
         self._renderer                        = None  # set during crawl() if render
 
         if honour_robots:
@@ -256,6 +288,14 @@ class Crawler:
                 clean = link.split("#")[0]
                 if self._in_scope(clean) and clean not in self._visited:
                     self._queue.append(clean)
+            # Record REST/JSON API endpoints the SPA called (Phase D).
+            for req in rr.api_requests:
+                self._record_api_endpoint(
+                    url=req.url,
+                    method=req.method,
+                    post_data=req.post_data,
+                    content_type=req.content_type,
+                )
         else:
             # --- Static HTTP path -------------------------------------------
             try:
@@ -270,6 +310,13 @@ class Crawler:
 
             content_type = resp.headers.get("Content-Type", "")
             if "text/html" not in content_type:
+                # A JSON endpoint supplied directly (e.g. --url .../search?q=x) is
+                # not an HTML page, but if it carries query parameters it's still a
+                # testable injection surface — record it for the Phase D API pass.
+                if "json" in content_type.lower():
+                    self._record_api_endpoint(
+                        url=final_url, method="GET", content_type=content_type,
+                    )
                 logger.debug("Skipping non-HTML content at %s (%s)", final_url, content_type)
                 return None
 
@@ -401,6 +448,63 @@ class Crawler:
         """
         parsed = urlparse(url)
         return parse_qs(parsed.query)  # returns {name: [value, ...]}
+
+    # ------------------------------------------------------------------
+    # REST/JSON API endpoint capture (Phase D)
+    # ------------------------------------------------------------------
+
+    def _record_api_endpoint(
+        self,
+        url: str,
+        method: str,
+        post_data: str | None = None,
+        content_type: str = "",
+    ) -> None:
+        """
+        Register a REST/JSON API endpoint for injection testing, if it exposes a
+        testable surface (query params and/or a JSON body) and is in-scope.
+
+        De-duplicated by (method, path, param-names, body-keys) so we test each
+        distinct endpoint shape exactly once regardless of how many times the SPA
+        called it.
+        """
+        if not self._in_scope(url):
+            return
+
+        query_params = self._extract_get_params(url)
+
+        json_body: dict | None = None
+        if post_data:
+            ct = (content_type or "").lower()
+            looks_json = "json" in ct or post_data.lstrip().startswith(("{", "["))
+            if looks_json:
+                try:
+                    parsed = _json.loads(post_data)
+                    if isinstance(parsed, dict):
+                        json_body = parsed
+                except (ValueError, TypeError):
+                    json_body = None
+
+        # Nothing to fuzz → don't record (avoids noise from param-less GETs).
+        if not query_params and not json_body:
+            return
+
+        endpoint = ApiEndpoint(
+            url=url,
+            method=(method or "GET").upper(),
+            query_params=query_params,
+            json_body=json_body,
+            content_type=content_type,
+        )
+        sig = endpoint.signature
+        if sig in self._api_seen:
+            return
+        self._api_seen.add(sig)
+        self.api_endpoints.append(endpoint)
+        logger.debug("Recorded API endpoint: %s %s (params=%s, body_keys=%s)",
+                     endpoint.method, url,
+                     list(query_params.keys()),
+                     list(json_body.keys()) if json_body else [])
 
     # ------------------------------------------------------------------
     # Robots.txt support

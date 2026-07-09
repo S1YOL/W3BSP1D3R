@@ -15,9 +15,10 @@ absent so the core suite stays dependency-light.
 """
 
 import unittest
+from urllib.parse import urlparse
 
 from scanner.utils import http as http_utils
-from scanner.crawler import Crawler
+from scanner.crawler import Crawler, ApiEndpoint
 from scanner.testers.base import set_scope_patterns
 from scanner.testers.sqli import SQLiTester
 from scanner.testers.xss import XSSTester
@@ -28,10 +29,11 @@ from tests.vulnerable_app import VulnerableApp
 
 _app: VulnerableApp | None = None
 _pages = None
+_api_endpoints: list = []
 
 
 def setUpModule() -> None:
-    global _app, _pages
+    global _app, _pages, _api_endpoints
     _app = VulnerableApp().__enter__()
     # Wait for the server to accept connections.
     import time
@@ -50,6 +52,7 @@ def setUpModule() -> None:
 
     crawler = Crawler(base_url=origin, honour_robots=False, max_pages=50)
     _pages = crawler.crawl()
+    _api_endpoints = crawler.api_endpoints
 
 
 def tearDownModule() -> None:
@@ -126,6 +129,79 @@ class TestPrecision(unittest.TestCase):
         findings = SQLiTester().run(_pages)
         offenders = [f.url for f in findings if "/xss" in f.url or "/static" in f.url]
         self.assertEqual(offenders, [], f"false-positive SQLi on non-SQL endpoint: {offenders}")
+
+
+class TestApiDiscovery(unittest.TestCase):
+    """Phase D — REST/JSON endpoints must be captured as an injectable surface."""
+
+    def test_json_get_endpoint_recorded_from_crawl(self):
+        # /api/search returns application/json, so it is NOT a crawlable HTML page
+        # yet must still be recorded as an API endpoint with its query param.
+        paths = {urlparse(e.url).path for e in _api_endpoints}
+        self.assertIn(
+            "/api/search", paths,
+            f"JSON API endpoint not captured (endpoints: {sorted(paths)})",
+        )
+        search = next(e for e in _api_endpoints if urlparse(e.url).path == "/api/search")
+        self.assertIn("q", search.query_params)
+
+
+class TestApiRecall(unittest.TestCase):
+    """Phase D — planted API injections must be detected."""
+
+    @staticmethod
+    def _run(endpoints):
+        tester = SQLiTester()
+        tester.set_api_endpoints(endpoints)
+        return tester.run([])   # no HTML pages — API surface only
+
+    def test_get_json_query_param_sqli(self):
+        eps = [e for e in _api_endpoints if urlparse(e.url).path == "/api/search"]
+        self.assertTrue(eps, "no /api/search endpoint discovered to test")
+        findings = self._run(eps)
+        self.assertTrue(
+            any("/api/search" in f.url for f in findings),
+            f"error-based SQLi in JSON GET param not detected ({_urls(findings)})",
+        )
+
+    def test_json_body_error_based_sqli(self):
+        ep = ApiEndpoint(
+            url=f"{_app.url}/api/login", method="POST",
+            json_body={"username": "admin", "password": "pass"},
+        )
+        findings = self._run([ep])
+        self.assertTrue(
+            any(f.parameter == "username" and "/api/login" in f.url for f in findings),
+            f"error-based SQLi in JSON body not detected ({_urls(findings)})",
+        )
+
+    def test_json_body_boolean_based_sqli(self):
+        ep = ApiEndpoint(
+            url=f"{_app.url}/api/report", method="POST",
+            json_body={"category": "news"},
+        )
+        findings = self._run([ep])
+        self.assertTrue(
+            any("/api/report" in f.url for f in findings),
+            f"boolean-based blind SQLi in JSON body not detected ({_urls(findings)})",
+        )
+
+
+class TestApiPrecision(unittest.TestCase):
+    """Phase D — a JSON endpoint that merely reflects input is NOT injection."""
+
+    def test_reflecting_json_body_not_flagged(self):
+        ep = ApiEndpoint(
+            url=f"{_app.url}/api/echo", method="POST",
+            json_body={"msg": "hello"},
+        )
+        tester = SQLiTester()
+        tester.set_api_endpoints([ep])
+        findings = tester.run([])
+        self.assertEqual(
+            [f.url for f in findings], [],
+            f"false-positive SQLi on a reflecting JSON endpoint ({_urls(findings)})",
+        )
 
 
 class TestDomXss(unittest.TestCase):

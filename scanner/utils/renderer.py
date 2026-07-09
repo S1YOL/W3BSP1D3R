@@ -36,6 +36,18 @@ def is_available() -> bool:
 
 
 @dataclass
+class ApiRequest:
+    """An XHR/fetch call the page made while rendering — a REST/JSON API endpoint
+    that the SPA talks to. These are the injectable surfaces a static crawler
+    never sees."""
+    url:          str
+    method:       str
+    resource_type: str = ""       # "xhr" or "fetch"
+    post_data:    str | None = None
+    content_type: str = ""         # request Content-Type (e.g. application/json)
+
+
+@dataclass
 class RenderResult:
     """The outcome of rendering a single URL in the browser."""
     html:         str
@@ -43,6 +55,7 @@ class RenderResult:
     status:       int
     content_type: str = ""
     links:        list[str] = field(default_factory=list)
+    api_requests: list[ApiRequest] = field(default_factory=list)
 
 
 class BrowserRenderer:
@@ -138,6 +151,32 @@ class BrowserRenderer:
             raise RuntimeError("BrowserRenderer used outside its context manager")
 
         page = self._context.new_page()
+
+        # Capture XHR/fetch calls the SPA makes — these are the REST/JSON API
+        # endpoints (the injectable surface a static crawler can't see).
+        api_requests: list[ApiRequest] = []
+
+        def _on_request(request) -> None:
+            try:
+                if request.resource_type not in ("xhr", "fetch"):
+                    return
+                headers = {}
+                try:
+                    headers = request.headers or {}
+                except Exception:
+                    headers = {}
+                api_requests.append(ApiRequest(
+                    url=request.url,
+                    method=(request.method or "GET").upper(),
+                    resource_type=request.resource_type,
+                    post_data=request.post_data,
+                    content_type=headers.get("content-type", ""),
+                ))
+            except Exception:
+                pass
+
+        page.on("request", _on_request)
+
         try:
             resp = page.goto(url, wait_until=self.wait_until, timeout=self.timeout)
             # Give late XHR/hydration a brief extra window (best-effort).
@@ -170,6 +209,7 @@ class BrowserRenderer:
                 status=status,
                 content_type=content_type,
                 links=links or [],
+                api_requests=api_requests,
             )
         except Exception as exc:
             logger.debug("Browser render failed for %s: %s", url, exc)

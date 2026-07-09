@@ -417,8 +417,11 @@ class HttpClient:
                 session = self.get_session()
                 if method == "GET":
                     resp = session.get(url, **kwargs)
-                else:
+                elif method == "POST":
                     resp = session.post(url, data=data, **kwargs)
+                else:
+                    # PUT / PATCH / DELETE / etc. — used by API-endpoint fuzzing.
+                    resp = session.request(method, url, data=data, **kwargs)
                 self._merge_cookies(resp)
                 elapsed = time.monotonic() - start_time
 
@@ -515,6 +518,32 @@ class HttpClient:
         logger.debug("Timed POST %s → %.2fs", url, elapsed)
         return resp, elapsed
 
+    def request(self, method: str, url: str, data: dict | None = None, **kwargs) -> Response:
+        """Issue an arbitrary-method request through the retry/rate-limit path.
+        Used by API-endpoint fuzzing (JSON-body POST/PUT/PATCH)."""
+        return self._request_with_retry(method.upper(), url, data=data, **kwargs)
+
+    def timed_request(self, method: str, url: str,
+                      data: dict | None = None, **kwargs) -> tuple[Response, float]:
+        """Timed arbitrary-method request (for time-based blind SQLi on APIs)."""
+        method = method.upper()
+        if method == "GET":
+            return self.timed_get(url, **kwargs)
+        self._pace()
+        kwargs.setdefault("timeout", max(self.timeout, 35))
+        kwargs.setdefault("allow_redirects", True)
+        session = self.get_session()
+        start = time.monotonic()
+        resp = session.request(method, url, data=data, **kwargs)
+        elapsed = time.monotonic() - start
+        self._merge_cookies(resp)
+        self._check_redirect(resp)
+        _enforce_size_limit(resp)
+        self.metrics.record_request(
+            success=True, bytes_received=len(resp.content), response_time=elapsed)
+        logger.debug("Timed %s %s → %.2fs", method, url, elapsed)
+        return resp, elapsed
+
     def get_metrics(self) -> dict:
         return self.metrics.snapshot()
 
@@ -585,6 +614,16 @@ def timed_get(url: str, **kwargs) -> tuple[Response, float]:
 def timed_post(url: str, data: dict | None = None, **kwargs) -> tuple[Response, float]:
     """POST that also returns elapsed wall-clock time."""
     return get_current_client().timed_post(url, data=data, **kwargs)
+
+
+def request(method: str, url: str, data: dict | None = None, **kwargs) -> Response:
+    """Rate-limited, thread-safe arbitrary-method request (GET/POST/PUT/PATCH/…)."""
+    return get_current_client().request(method, url, data=data, **kwargs)
+
+
+def timed_request(method: str, url: str, data: dict | None = None, **kwargs) -> tuple[Response, float]:
+    """Arbitrary-method request that also returns elapsed wall-clock time."""
+    return get_current_client().timed_request(method, url, data=data, **kwargs)
 
 
 # -- internal helpers preserved for tests / the rate-limit dashboard --------
