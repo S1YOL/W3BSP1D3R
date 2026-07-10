@@ -27,6 +27,35 @@ import platform
 import sys
 from pathlib import Path
 
+
+def _force_utf8_io() -> None:
+    """Make stdout/stderr UTF-8 so Unicode output can't crash the run.
+
+    The banner's box-drawing glyphs, the '→' status arrows, and the findings
+    tables are all non-ASCII. On Windows the default console encoding is cp1252,
+    and rich's legacy-console renderer writes straight through the stream's
+    encoder — so those glyphs raise UnicodeEncodeError and abort the scan before
+    it starts. Reconfiguring to UTF-8 (with errors='replace' as a backstop) fixes
+    it; on Linux/macOS the streams are already UTF-8, so this is a no-op.
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            # chcp 65001 equivalent — let the console render the UTF-8 bytes.
+            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+            ctypes.windll.kernel32.SetConsoleCP(65001)
+        except Exception:
+            pass
+    for _name in ("stdout", "stderr"):
+        _stream = getattr(sys, _name, None)
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_force_utf8_io()
+
 from scanner.core import WebVulnScanner
 
 
