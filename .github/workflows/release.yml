@@ -52,50 +52,72 @@ jobs:
           pip install requests beautifulsoup4 lxml rich defusedxml pyyaml fpdf2 flask httpx playwright pyinstaller
 
       # Chromium's system libraries are only needed to LAUNCH the browser during
-      # the smoke test below. End users on desktop Linux normally already have
-      # them; minimal/headless servers may need `playwright install-deps`.
+      # the smoke test below. Playwright invokes sudo itself for the apt step, so
+      # this runs with the Python that actually has Playwright installed.
+      # End users on desktop Linux normally already have these libs; minimal or
+      # headless servers may need a one-time `playwright install-deps`.
       - name: Install Chromium system libs (Linux, for smoke test)
         if: matrix.platform == 'linux'
-        run: sudo python -m playwright install-deps chromium
+        run: python -m playwright install-deps chromium
 
-      # Install Chromium INTO a folder we then bundle, so the browser ships
-      # inside the release archive (no `playwright install` needed by users).
-      - name: Fetch Chromium into the bundle folder
+      # Fetch Chromium into a folder we then copy into the bundle, so the browser
+      # ships inside the release archive (no `playwright install` needed by users).
+      - name: Fetch Chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
         run: python -m playwright install chromium
 
       # Runtime hook: point Playwright at the bundled browser and make its
-      # binaries executable (PyInstaller does not preserve the +x bit on data).
+      # binaries executable (in case the archive tooling drops the +x bit).
       - name: Write PyInstaller runtime hook
         shell: bash
         run: |
           cat > pyi_rth_playwright.py <<'EOF'
           import os, sys, stat
-          if hasattr(sys, "_MEIPASS"):
-              bp = os.path.join(sys._MEIPASS, "pw-browsers")
-              os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", bp)
-              if os.name != "nt" and os.path.isdir(bp):
-                  for root, _dirs, files in os.walk(bp):
-                      for f in files:
-                          p = os.path.join(root, f)
+          def _find_browsers():
+              cands = []
+              if hasattr(sys, "_MEIPASS"):
+                  cands.append(os.path.join(sys._MEIPASS, "pw-browsers"))
+              exe_dir = os.path.dirname(sys.executable)
+              cands.append(os.path.join(exe_dir, "_internal", "pw-browsers"))
+              cands.append(os.path.join(exe_dir, "pw-browsers"))
+              for c in cands:
+                  if os.path.isdir(c):
+                      return c
+              return None
+          _bp = _find_browsers()
+          if _bp:
+              os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", _bp)
+              if os.name != "nt":
+                  for _root, _dirs, _files in os.walk(_bp):
+                      for _f in _files:
+                          _p = os.path.join(_root, _f)
                           try:
-                              os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                              os.chmod(_p, os.stat(_p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                           except OSError:
                               pass
           EOF
 
+      # Note: the browser is NOT passed to PyInstaller (--add-data). PyInstaller
+      # would try to ad-hoc codesign the Chromium binary on macOS and fail. We
+      # copy it into the finished bundle in the next step instead.
       - name: Build standalone bundle
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" = "windows" ]; then SEP=";"; else SEP=":"; fi
           pyinstaller --noconfirm --clean --name W3BSP1D3R \
             --collect-submodules scanner \
             --collect-all fpdf \
             --collect-all playwright \
-            --add-data "pw-browsers${SEP}pw-browsers" \
             --runtime-hook pyi_rth_playwright.py \
             main.py
+
+      - name: Copy bundled Chromium into the build
+        shell: bash
+        run: |
+          B="dist/W3BSP1D3R"
+          if [ -d "$B/_internal" ]; then DEST="$B/_internal/pw-browsers"; else DEST="$B/pw-browsers"; fi
+          cp -a pw-browsers "$DEST"
+          echo "Chromium copied to $DEST"
 
       - name: Add docs and example config to the bundle
         shell: bash
@@ -104,9 +126,9 @@ jobs:
           cp README.md LICENSE RELEASE_NOTES_v1.0.0.md w3bsp1d3r.example.yaml "$B"/ 2>/dev/null || true
           cp -r examples "$B"/ 2>/dev/null || true
           if [ "${{ matrix.platform }}" = "windows" ]; then
-            printf 'Unzip this folder anywhere, then double-click W3BSP1D3R.exe\r\nor run it from a terminal:\r\n\r\n    W3BSP1D3R.exe https://target.example.com\r\n\r\nJavaScript/SPA scanning works out of the box:\r\n\r\n    W3BSP1D3R.exe https://spa.example.com --render --interact\r\n\r\nNo Python, no browser install, no setup required.\r\n' > "$B/HOW-TO-RUN.txt"
+            printf 'Unzip this folder anywhere, then run W3BSP1D3R.exe from a terminal:\r\n\r\n    W3BSP1D3R.exe --url https://target.example.com\r\n\r\nJavaScript/SPA scanning works out of the box:\r\n\r\n    W3BSP1D3R.exe --url https://spa.example.com --render --interact\r\n\r\nNo Python, no browser install, no setup required.\r\n' > "$B/HOW-TO-RUN.txt"
           else
-            printf 'Extract this folder anywhere, then run:\n\n    ./W3BSP1D3R https://target.example.com\n\nJavaScript/SPA scanning works out of the box:\n\n    ./W3BSP1D3R https://spa.example.com --render --interact\n\nNo Python, no browser install, no setup required.\n' > "$B/HOW-TO-RUN.txt"
+            printf 'Extract this folder anywhere, then run:\n\n    ./W3BSP1D3R --url https://target.example.com\n\nJavaScript/SPA scanning works out of the box:\n\n    ./W3BSP1D3R --url https://spa.example.com --render --interact\n\nNo Python, no browser install, no setup required.\n' > "$B/HOW-TO-RUN.txt"
           fi
 
       - name: Smoke-test the bundle (CLI + bundled Chromium actually launches)
@@ -121,7 +143,7 @@ jobs:
           python -m http.server 8000 --directory smoke >/dev/null 2>&1 &
           sleep 3
           set +e
-          OUT="$("$BIN" http://127.0.0.1:8000 --render --max-pages 1 2>&1)"
+          OUT="$("$BIN" --url http://127.0.0.1:8000 --render --max-pages 1 --scan-type passive 2>&1)"
           set -e
           echo "$OUT"
           if echo "$OUT" | grep -qi "Failed to start headless browser\|Playwright is not installed"; then
