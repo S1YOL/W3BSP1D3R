@@ -66,9 +66,12 @@ _REMEDIATION = (
 
 
 def _score_to_severity(score: float) -> str:
-    if score >= 9.0: return Severity.CRITICAL
-    if score >= 7.0: return Severity.HIGH
-    if score >= 4.0: return Severity.MEDIUM
+    if score >= 9.0:
+        return Severity.CRITICAL
+    if score >= 7.0:
+        return Severity.HIGH
+    if score >= 4.0:
+        return Severity.MEDIUM
     return Severity.LOW
 
 

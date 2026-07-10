@@ -8,7 +8,6 @@ from __future__ import annotations
 from unittest.mock import patch, MagicMock
 
 from scanner.crawler import CrawledPage, CrawledForm, FormField
-from scanner.reporting.models import Severity, VulnType
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────

@@ -22,7 +22,6 @@ import os
 import tempfile
 import time
 import unittest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # ---------------------------------------------------------------------------

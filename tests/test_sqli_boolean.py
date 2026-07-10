@@ -1,11 +1,10 @@
 """Tests for boolean-based blind SQLi 3-way + recheck logic."""
 from __future__ import annotations
 
-import types
 from unittest.mock import patch, MagicMock
 
-from scanner.testers.sqli import SQLiTester, BOOLEAN_DIFF_THRESHOLD
-from scanner.crawler import CrawledPage, CrawledForm, FormField
+from scanner.testers.sqli import SQLiTester
+from scanner.crawler import CrawledForm, FormField
 
 
 def _make_form(action: str = "http://target/vuln", method: str = "POST") -> CrawledForm:

@@ -19,7 +19,6 @@ OWASP ref: A01:2021 Broken Access Control, CWE-601
 
 import logging
 import re
-from urllib.parse import urlparse
 
 from scanner.crawler import CrawledForm, CrawledPage
 from scanner.reporting.models import Finding, Severity, VulnType

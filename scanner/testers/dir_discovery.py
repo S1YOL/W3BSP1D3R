@@ -19,11 +19,11 @@ Detection approach:
 """
 
 import logging
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 from scanner.testers.base import BaseTester
 from scanner.crawler import CrawledPage
-from scanner.reporting.models import Confidence, Finding, Severity, VulnType
+from scanner.reporting.models import Confidence, Finding, Severity
 from scanner.utils import http as http_utils
 
 logger = logging.getLogger(__name__)

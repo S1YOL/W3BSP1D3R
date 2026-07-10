@@ -22,7 +22,7 @@ since confirming true IDOR requires knowledge of authorisation boundaries.
 
 import logging
 import re
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 from scanner.crawler import CrawledPage, CrawledForm
 from scanner.reporting.models import Finding, Severity, VulnType

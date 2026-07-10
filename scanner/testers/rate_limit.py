@@ -19,7 +19,6 @@ Detection approach:
 
 import logging
 import secrets
-import time
 from urllib.parse import urlparse
 
 from scanner.testers.base import BaseTester

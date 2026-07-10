@@ -21,7 +21,6 @@ Usage:
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from scanner.reporting.models import Finding, ScanSummary, Severity
 
@@ -57,7 +56,7 @@ def write_pdf_report(summary: ScanSummary, output_path: str) -> Path:
         ImportError if fpdf2 is not installed.
     """
     try:
-        from fpdf import FPDF
+        import fpdf  # noqa: F401  (import itself is the fpdf2 availability check)
     except ImportError:
         raise ImportError(
             "PDF report generation requires fpdf2. "

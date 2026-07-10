@@ -26,7 +26,7 @@ import json as _json
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode
+from urllib.parse import urljoin, urlparse, urlunparse, parse_qs
 try:
     from defusedxml.ElementTree import fromstring as _safe_xml_fromstring
 except ImportError:

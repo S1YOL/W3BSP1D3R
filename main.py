@@ -549,7 +549,7 @@ def _build_config_from_args(args: argparse.Namespace) -> object:
 
     Priority: CLI args > env vars > config file > profile > defaults
     """
-    from scanner.config import ScanConfig, AuthConfig, load_config, load_config_from_env
+    from scanner.config import ScanConfig, load_config, load_config_from_env
 
     # Start with config file if provided
     if args.config:

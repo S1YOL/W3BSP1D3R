@@ -37,7 +37,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from scanner.auth import AuthHandler
 from scanner.crawler import Crawler

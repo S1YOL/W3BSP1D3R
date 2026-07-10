@@ -32,7 +32,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
 
-from scanner.reporting.models import ScanSummary, Severity
+from scanner.reporting.models import ScanSummary
 
 logger = logging.getLogger(__name__)
 

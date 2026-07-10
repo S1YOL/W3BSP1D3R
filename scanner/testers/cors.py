@@ -61,7 +61,6 @@ class CORSTester(BaseTester):
     def _test_cors(self, url: str) -> None:
         """Run CORS probes against a single URL."""
         parsed = urlparse(url)
-        target_origin = f"{parsed.scheme}://{parsed.netloc}"
 
         # Probe 1: Evil attacker origin
         evil_origin = "https://evil-attacker.com"

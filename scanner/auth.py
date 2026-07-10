@@ -19,7 +19,7 @@ Security concept:
 """
 
 import logging
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 

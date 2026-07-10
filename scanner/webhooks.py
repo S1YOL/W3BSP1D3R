@@ -27,7 +27,6 @@ Usage:
     notifier.notify_scan_complete(summary, scan_id="abc123")
 """
 
-import json
 import logging
 from dataclasses import dataclass, field
 from typing import Optional

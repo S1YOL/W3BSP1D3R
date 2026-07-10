@@ -16,7 +16,6 @@ Covers:
 """
 
 import logging
-from urllib.parse import urlparse
 
 from scanner.testers.base import BaseTester
 from scanner.crawler import CrawledPage

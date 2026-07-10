@@ -29,7 +29,7 @@ import asyncio
 import ipaddress
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)

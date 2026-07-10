@@ -23,11 +23,11 @@ Usage:
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 
-from scanner.reporting.models import Finding, ScanSummary, Severity, get_owasp_category
+from scanner.reporting.models import Finding, ScanSummary, get_owasp_category
 
 logger = logging.getLogger(__name__)
 

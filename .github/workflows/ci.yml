@@ -40,7 +40,7 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check scanner/ tests/ main.py --select E,F,W --ignore E501,E402,W503
+          ruff check scanner/ tests/ main.py --select E,F,W --ignore E501,E402
 
       - name: Run tests
         run: |

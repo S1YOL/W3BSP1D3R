@@ -35,7 +35,10 @@ class TestClientContextIsolation(unittest.TestCase):
 
         t1 = threading.Thread(target=worker, args=("a", ca))
         t2 = threading.Thread(target=worker, args=("b", cb))
-        t1.start(); t2.start(); t1.join(); t2.join()
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
 
         self.assertEqual(seen["a"], {"http://a.example"})
         self.assertEqual(seen["b"], {"http://b.example"})
@@ -51,7 +54,10 @@ class TestClientContextIsolation(unittest.TestCase):
 
         t1 = threading.Thread(target=worker, args=("a", ["*/a/*"]))
         t2 = threading.Thread(target=worker, args=("b", ["*/b/*"]))
-        t1.start(); t2.start(); t1.join(); t2.join()
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
 
         self.assertEqual(seen["a"][0], ["*/a/*"])
         self.assertEqual(seen["b"][0], ["*/b/*"])
@@ -88,7 +94,10 @@ class TestConcurrentScansIsolated(unittest.TestCase):
 
             t1 = threading.Thread(target=run, args=("a", app1.url))
             t2 = threading.Thread(target=run, args=("b", app2.url))
-            t1.start(); t2.start(); t1.join(); t2.join()
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
 
             self.assertEqual(errors, {}, f"scan errors: {errors}")
 

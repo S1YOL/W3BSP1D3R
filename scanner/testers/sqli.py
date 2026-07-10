@@ -40,7 +40,6 @@ user input into SQL strings. Use an ORM or query builder.
 """
 
 import logging
-import time
 from typing import NamedTuple
 
 from scanner.crawler import ApiEndpoint, CrawledForm, CrawledPage
@@ -126,9 +125,9 @@ TIME_PAYLOADS: list[Payload] = [
     Payload(f"1 OR SLEEP({SLEEP_SECONDS})--",
             "MySQL/MariaDB SLEEP numeric context"),
     # MySQL / MariaDB — BENCHMARK fallback (when SLEEP is blocked by WAF)
-    Payload(f"' OR BENCHMARK(50000000,MD5(1))--",
+    Payload("' OR BENCHMARK(50000000,MD5(1))--",
             "MySQL/MariaDB BENCHMARK — CPU-based delay when SLEEP is filtered"),
-    Payload(f"' OR BENCHMARK(50000000,MD5(1))#",
+    Payload("' OR BENCHMARK(50000000,MD5(1))#",
             "MySQL/MariaDB BENCHMARK (hash comment)"),
     # MySQL / MariaDB — subquery-wrapped SLEEP (WAF bypass)
     Payload(f"' AND (SELECT * FROM (SELECT(SLEEP({SLEEP_SECONDS})))a)--",
@@ -142,7 +141,7 @@ TIME_PAYLOADS: list[Payload] = [
     Payload(f"' OR pg_sleep({SLEEP_SECONDS})--",
             "PostgreSQL pg_sleep — causes 5s delay"),
     # SQLite
-    Payload(f"' OR (SELECT LIKE('ABCDEFG',UPPER(HEX(RANDOMBLOB(100000000/1)))))--",
+    Payload("' OR (SELECT LIKE('ABCDEFG',UPPER(HEX(RANDOMBLOB(100000000/1)))))--",
             "SQLite RANDOMBLOB — heavy computation causes delay"),
 ]
 

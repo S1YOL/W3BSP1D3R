@@ -16,7 +16,6 @@ import base64
 import json
 import logging
 import re
-from urllib.parse import urlparse
 
 from scanner.testers.base import BaseTester
 from scanner.crawler import CrawledPage
@@ -117,8 +116,8 @@ class JWTTester(BaseTester):
                 method="GET",
                 payload=f"JWT header: alg={alg}",
                 evidence=(
-                    f"JWT uses algorithm 'none' — tokens can be forged without "
-                    f"any signing key. Full authentication bypass."
+                    "JWT uses algorithm 'none' — tokens can be forged without "
+                    "any signing key. Full authentication bypass."
                 ),
                 remediation=(
                     "Enforce a specific signing algorithm (RS256 or ES256 recommended). "

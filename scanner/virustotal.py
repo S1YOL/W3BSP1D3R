@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from scanner.utils.display import print_status, print_warning
+from scanner.utils.display import print_status
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ def scan_target(
         _evaluate(result, flagged)
 
     # 2. Check the target URL itself
-    print_status(f"VirusTotal: checking target URL")
+    print_status("VirusTotal: checking target URL")
     result = vt.check_url(base_url)
     if result:
         _evaluate(result, flagged)

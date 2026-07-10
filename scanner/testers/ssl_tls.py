@@ -235,7 +235,7 @@ class SSLTLSTester(BaseTester):
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
                 with socket.create_connection((hostname, port), timeout=5) as sock:
-                    with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
+                    with ctx.wrap_socket(sock, server_hostname=hostname):
                         # If we get here, the server accepted the deprecated protocol
                         self._log_finding(Finding(
                             vuln_type=VulnType.SSL_TLS,
