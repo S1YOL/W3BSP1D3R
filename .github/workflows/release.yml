@@ -1,0 +1,108 @@
+name: Build release bundles
+
+# Builds fully self-contained W3BSP1D3R bundles (Python + all dependencies
+# baked in — nothing to install) for Linux, Windows, and macOS, and attaches
+# them to the matching GitHub Release.
+#
+# Runs automatically when a release is published, and can be triggered by hand
+# from the Actions tab (useful for attaching bundles to an existing release).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the bundles to (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.platform }} bundle
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml rich defusedxml pyyaml fpdf2 flask httpx pyinstaller
+
+      - name: Build standalone bundle
+        run: >
+          pyinstaller --noconfirm --clean --name W3BSP1D3R
+          --collect-submodules scanner
+          --collect-all fpdf
+          main.py
+
+      - name: Add docs and example config to the bundle
+        shell: bash
+        run: |
+          B="dist/W3BSP1D3R"
+          cp README.md LICENSE RELEASE_NOTES_v1.0.0.md w3bsp1d3r.example.yaml "$B"/ 2>/dev/null || true
+          cp -r examples "$B"/ 2>/dev/null || true
+          # A short, platform-appropriate "how to run" note inside the bundle
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            printf 'Unzip this folder anywhere, then double-click W3BSP1D3R.exe\r\nor run it from a terminal:\r\n\r\n    W3BSP1D3R.exe https://target.example.com\r\n\r\nNo Python or setup required.\r\n' > "$B/HOW-TO-RUN.txt"
+          else
+            printf 'Extract this folder anywhere, then run:\n\n    ./W3BSP1D3R https://target.example.com\n\nNo Python or setup required.\n' > "$B/HOW-TO-RUN.txt"
+          fi
+
+      - name: Smoke-test the built binary
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            ./dist/W3BSP1D3R/W3BSP1D3R.exe --help
+          else
+            ./dist/W3BSP1D3R/W3BSP1D3R --help
+          fi
+
+      - name: Package archive
+        id: pkg
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          cd dist
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            ASSET="W3BSP1D3R-${TAG}-windows.zip"
+            7z a "$ASSET" W3BSP1D3R >/dev/null
+          else
+            ASSET="W3BSP1D3R-${TAG}-${{ matrix.platform }}.tar.gz"
+            tar -czf "$ASSET" W3BSP1D3R
+          fi
+          echo "asset=dist/$ASSET" >> "$GITHUB_OUTPUT"
+          echo "Built $ASSET"
+
+      - name: Upload bundle to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${{ steps.pkg.outputs.tag }}" "${{ steps.pkg.outputs.asset }}" \
+            --repo "${{ github.repository }}" --clobber
