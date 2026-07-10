@@ -3,9 +3,12 @@
 **Web vulnerability scanner built in Python — 26 test modules, headless-browser rendering for JavaScript/SPA targets, REST/JSON API fuzzing, 5 report formats, YAML config profiles, enterprise auth, plugin system, REST API server, and structured logging. Built for labs, authorised pentesting, and CI/CD pipelines.**
 
 ```
-  ╦ ╦╔═╗╔╗ ╔═╗╔═╗╦╔╦╗╔═╗╦═╗
-  ║║║╠═╣╠╩╗╚═╗╠═╝║ ║║║╣ ╠╦╝
-  ╚╩╝╩ ╩╚═╝╚═╝╩  ╩═╩╝╚═╝╩╚═
+ ██╗    ██╗ ██████╗ ██████╗ ███████╗██████╗  ██╗██████╗ ██████╗ ██████╗
+ ██║    ██║ ╚════██╗██╔══██╗██╔════╝██╔══██╗███║██╔══██╗╚════██╗██╔══██╗
+ ██║ █╗ ██║  █████╔╝██████╔╝███████╗██████╔╝╚██║██║  ██║ █████╔╝██████╔╝
+ ██║███╗██║  ╚═══██╗██╔══██╗╚════██║██╔═══╝  ██║██║  ██║ ╚═══██╗██╔══██╗
+ ╚███╔███╔╝ ██████╔╝██████╔╝███████║██║      ██║██████╔╝██████╔╝██║  ██║
+  ╚══╝╚══╝  ╚═════╝ ╚═════╝ ╚══════╝╚═╝      ╚═╝╚═════╝ ╚═════╝ ╚═╝  ╚═╝
 ```
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
