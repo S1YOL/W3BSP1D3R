@@ -1,8 +1,9 @@
 name: Build release bundles
 
-# Builds fully self-contained W3BSP1D3R bundles (Python + all dependencies
-# baked in — nothing to install) for Linux, Windows, and macOS, and attaches
-# them to the matching GitHub Release.
+# Builds fully self-contained W3BSP1D3R bundles (Python + all dependencies AND a
+# headless Chromium for the --render / --interact features baked in — nothing to
+# install) for Linux, Windows, and macOS, and attaches them to the matching
+# GitHub Release.
 #
 # Runs automatically when a release is published, and can be triggered by hand
 # from the Actions tab (useful for attaching bundles to an existing release).
@@ -24,6 +25,7 @@ jobs:
   build:
     name: ${{ matrix.platform }} bundle
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -44,17 +46,56 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies + PyInstaller
+      - name: Install dependencies + Playwright + PyInstaller
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 lxml rich defusedxml pyyaml fpdf2 flask httpx pyinstaller
+          pip install requests beautifulsoup4 lxml rich defusedxml pyyaml fpdf2 flask httpx playwright pyinstaller
+
+      # Chromium's system libraries are only needed to LAUNCH the browser during
+      # the smoke test below. End users on desktop Linux normally already have
+      # them; minimal/headless servers may need `playwright install-deps`.
+      - name: Install Chromium system libs (Linux, for smoke test)
+        if: matrix.platform == 'linux'
+        run: sudo python -m playwright install-deps chromium
+
+      # Install Chromium INTO a folder we then bundle, so the browser ships
+      # inside the release archive (no `playwright install` needed by users).
+      - name: Fetch Chromium into the bundle folder
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
+        run: python -m playwright install chromium
+
+      # Runtime hook: point Playwright at the bundled browser and make its
+      # binaries executable (PyInstaller does not preserve the +x bit on data).
+      - name: Write PyInstaller runtime hook
+        shell: bash
+        run: |
+          cat > pyi_rth_playwright.py <<'EOF'
+          import os, sys, stat
+          if hasattr(sys, "_MEIPASS"):
+              bp = os.path.join(sys._MEIPASS, "pw-browsers")
+              os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", bp)
+              if os.name != "nt" and os.path.isdir(bp):
+                  for root, _dirs, files in os.walk(bp):
+                      for f in files:
+                          p = os.path.join(root, f)
+                          try:
+                              os.chmod(p, os.stat(p).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                          except OSError:
+                              pass
+          EOF
 
       - name: Build standalone bundle
-        run: >
-          pyinstaller --noconfirm --clean --name W3BSP1D3R
-          --collect-submodules scanner
-          --collect-all fpdf
-          main.py
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then SEP=";"; else SEP=":"; fi
+          pyinstaller --noconfirm --clean --name W3BSP1D3R \
+            --collect-submodules scanner \
+            --collect-all fpdf \
+            --collect-all playwright \
+            --add-data "pw-browsers${SEP}pw-browsers" \
+            --runtime-hook pyi_rth_playwright.py \
+            main.py
 
       - name: Add docs and example config to the bundle
         shell: bash
@@ -62,21 +103,34 @@ jobs:
           B="dist/W3BSP1D3R"
           cp README.md LICENSE RELEASE_NOTES_v1.0.0.md w3bsp1d3r.example.yaml "$B"/ 2>/dev/null || true
           cp -r examples "$B"/ 2>/dev/null || true
-          # A short, platform-appropriate "how to run" note inside the bundle
           if [ "${{ matrix.platform }}" = "windows" ]; then
-            printf 'Unzip this folder anywhere, then double-click W3BSP1D3R.exe\r\nor run it from a terminal:\r\n\r\n    W3BSP1D3R.exe https://target.example.com\r\n\r\nNo Python or setup required.\r\n' > "$B/HOW-TO-RUN.txt"
+            printf 'Unzip this folder anywhere, then double-click W3BSP1D3R.exe\r\nor run it from a terminal:\r\n\r\n    W3BSP1D3R.exe https://target.example.com\r\n\r\nJavaScript/SPA scanning works out of the box:\r\n\r\n    W3BSP1D3R.exe https://spa.example.com --render --interact\r\n\r\nNo Python, no browser install, no setup required.\r\n' > "$B/HOW-TO-RUN.txt"
           else
-            printf 'Extract this folder anywhere, then run:\n\n    ./W3BSP1D3R https://target.example.com\n\nNo Python or setup required.\n' > "$B/HOW-TO-RUN.txt"
+            printf 'Extract this folder anywhere, then run:\n\n    ./W3BSP1D3R https://target.example.com\n\nJavaScript/SPA scanning works out of the box:\n\n    ./W3BSP1D3R https://spa.example.com --render --interact\n\nNo Python, no browser install, no setup required.\n' > "$B/HOW-TO-RUN.txt"
           fi
 
-      - name: Smoke-test the built binary
+      - name: Smoke-test the bundle (CLI + bundled Chromium actually launches)
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            ./dist/W3BSP1D3R/W3BSP1D3R.exe --help
-          else
-            ./dist/W3BSP1D3R/W3BSP1D3R --help
+          if [ "${{ matrix.platform }}" = "windows" ]; then BIN="./dist/W3BSP1D3R/W3BSP1D3R.exe"; else BIN="./dist/W3BSP1D3R/W3BSP1D3R"; fi
+          # 1) CLI loads
+          "$BIN" --help >/dev/null
+          # 2) bundled Chromium launches: serve a tiny JS page and render it
+          mkdir -p smoke
+          printf '<html><body><script>document.body.innerHTML="<a href=\\"/x\\">x</a>";</script></body></html>' > smoke/index.html
+          python -m http.server 8000 --directory smoke >/dev/null 2>&1 &
+          sleep 3
+          set +e
+          OUT="$("$BIN" http://127.0.0.1:8000 --render --max-pages 1 2>&1)"
+          set -e
+          echo "$OUT"
+          if echo "$OUT" | grep -qi "Failed to start headless browser\|Playwright is not installed"; then
+            echo "::error::Render smoke test FAILED — bundled Chromium did not launch"; exit 1
           fi
+          if ! echo "$OUT" | grep -q "Headless browser started"; then
+            echo "::error::Render smoke test FAILED — no confirmation the browser started"; exit 1
+          fi
+          echo "Render smoke test PASSED — bundled Chromium launched"
 
       - name: Package archive
         id: pkg
