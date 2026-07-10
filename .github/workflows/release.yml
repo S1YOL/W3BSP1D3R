@@ -39,10 +39,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -133,6 +133,14 @@ jobs:
 
       - name: Smoke-test the bundle (CLI + bundled Chromium actually launches)
         shell: bash
+        env:
+          # Force the frozen interpreter's stdout/stderr unbuffered. When output
+          # is a pipe (as under $(...) here) Python block-buffers it, and a dirty
+          # process exit — e.g. Playwright's Node driver teardown on Windows —
+          # can discard the buffer before it's flushed, swallowing the very
+          # "Headless browser started" line this test greps for. Unbuffered means
+          # each line hits the pipe the instant it's printed.
+          PYTHONUNBUFFERED: "1"
         run: |
           if [ "${{ matrix.platform }}" = "windows" ]; then BIN="./dist/W3BSP1D3R/W3BSP1D3R.exe"; else BIN="./dist/W3BSP1D3R/W3BSP1D3R"; fi
           # 1) CLI loads
@@ -141,18 +149,27 @@ jobs:
           mkdir -p smoke
           printf '<html><body><script>document.body.innerHTML="<a href=\\"/x\\">x</a>";</script></body></html>' > smoke/index.html
           python -m http.server 8000 --directory smoke >/dev/null 2>&1 &
+          SRV=$!
           sleep 3
           set +e
           OUT="$("$BIN" --url http://127.0.0.1:8000 --render --max-pages 1 --scan-type passive 2>&1)"
+          CODE=$?
           set -e
+          kill "$SRV" 2>/dev/null || true
+          echo "----- scanner output (exit code $CODE) -----"
           echo "$OUT"
+          echo "--------------------------------------------"
+          # Explicit launch failure — the browser could not start at all.
           if echo "$OUT" | grep -qi "Failed to start headless browser\|Playwright is not installed"; then
             echo "::error::Render smoke test FAILED — bundled Chromium did not launch"; exit 1
           fi
-          if ! echo "$OUT" | grep -q "Headless browser started"; then
+          # Success = the browser announced it started OR a page came back tagged
+          # "(rendered)" (which only the headless-browser code path ever prints).
+          if echo "$OUT" | grep -q "Headless browser started" || echo "$OUT" | grep -q "(rendered)"; then
+            echo "Render smoke test PASSED — bundled Chromium launched"
+          else
             echo "::error::Render smoke test FAILED — no confirmation the browser started"; exit 1
           fi
-          echo "Render smoke test PASSED — bundled Chromium launched"
 
       - name: Package archive
         id: pkg
